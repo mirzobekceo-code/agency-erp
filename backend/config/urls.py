@@ -1,7 +1,8 @@
 from django.conf import settings
-from django.conf.urls.static import static
 from django.contrib import admin
-from django.urls import include, path
+from django.http import FileResponse, Http404
+from django.urls import include, path, re_path
+from django.views.static import serve
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
@@ -39,4 +40,17 @@ urlpatterns = [
     path("api/reports/finance/", reports.finance_report),
     path("api/reports/projects/<int:pk>/", reports.project_report),
     path("api/", include(router.urls)),
-] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    # Yuklangan fayllar (shartnomalar). Kichik jamoa uchun yetarli; ko'p fayl bo'lsa S3/R2 ga o'tkazing.
+    re_path(r"^media/(?P<path>.*)$", serve, {"document_root": settings.MEDIA_ROOT}),
+]
+
+
+def spa_index(request):
+    """React ilovasining ichki sahifalari (/tasks, /projects/1 ...) uchun index.html."""
+    index = settings.FRONTEND_DIST / "index.html"
+    if not index.exists():
+        raise Http404("Frontend yig'ilmagan: cd frontend && npm run build")
+    return FileResponse(index.open("rb"), content_type="text/html")
+
+
+urlpatterns += [re_path(r"^(?!api/|admin/|media/|static/).*$", spa_index)]

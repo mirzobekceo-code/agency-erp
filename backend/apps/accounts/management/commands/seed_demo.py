@@ -1,8 +1,10 @@
+import os
 import random
 from datetime import timedelta
 from decimal import Decimal
 
-from django.core.management.base import BaseCommand
+from django.conf import settings
+from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 
@@ -21,20 +23,26 @@ class Command(BaseCommand):
         if Client.objects.exists():
             self.stdout.write(self.style.WARNING("Ma'lumotlar allaqachon mavjud — o'tkazib yuborildi."))
             return
+        # Ochiq serverda hammaga ma'lum parollar qo'yilmasligi uchun.
+        pw = os.getenv("DEMO_PASSWORD") or ("demo12345" if settings.DEBUG else None)
+        if not pw:
+            raise CommandError("Production'da DEMO_PASSWORD muhit o'zgaruvchisini bering.")
         random.seed(42)
         today = timezone.localdate()
 
-        admin = User.objects.create_superuser("admin", "", "admin12345", first_name="Admin", role="admin")
+        if not User.objects.filter(is_superuser=True).exists():
+            User.objects.create_superuser("admin", "", "admin12345" if settings.DEBUG else pw,
+                                          first_name="Admin", role="admin")
         staff = [
-            User.objects.create_user("aziz", password="demo12345", first_name="Aziz", last_name="Karimov",
+            User.objects.create_user("aziz", password=pw, first_name="Aziz", last_name="Karimov",
                                      role="manager", position="Loyiha menejeri", salary=Decimal("9000000")),
-            User.objects.create_user("malika", password="demo12345", first_name="Malika", last_name="Rahimova",
+            User.objects.create_user("malika", password=pw, first_name="Malika", last_name="Rahimova",
                                      role="specialist", position="SMM mutaxassis", salary=Decimal("6000000")),
-            User.objects.create_user("jasur", password="demo12345", first_name="Jasur", last_name="Toshev",
+            User.objects.create_user("jasur", password=pw, first_name="Jasur", last_name="Toshev",
                                      role="specialist", position="Targetolog", salary=Decimal("7000000")),
-            User.objects.create_user("dilnoza", password="demo12345", first_name="Dilnoza", last_name="Usmonova",
+            User.objects.create_user("dilnoza", password=pw, first_name="Dilnoza", last_name="Usmonova",
                                      role="specialist", position="Dizayner", salary=Decimal("6500000")),
-            User.objects.create_user("nodira", password="demo12345", first_name="Nodira", last_name="Aliyeva",
+            User.objects.create_user("nodira", password=pw, first_name="Nodira", last_name="Aliyeva",
                                      role="accountant", position="Buxgalter", salary=Decimal("5500000")),
         ]
         manager, smm, target, designer, _ = staff
@@ -121,5 +129,6 @@ class Command(BaseCommand):
                                 expected_value=Decimal(random.randint(5, 20) * 1_000_000), service="SMM + target")
 
         self.stdout.write(self.style.SUCCESS(
-            "Demo ma'lumotlar yaratildi. Kirish: admin / admin12345 (xodimlar: aziz, malika, ... / demo12345)"
+            "Demo ma'lumotlar yaratildi. Xodimlar: aziz, malika, jasur, dilnoza, nodira "
+            "(parol: DEMO_PASSWORD yoki lokalda demo12345; lokal admin: admin / admin12345)"
         ))

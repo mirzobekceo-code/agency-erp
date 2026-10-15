@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: agency-erp
+    runtime: python
+    plan: free
+    region: frankfurt
+    buildCommand: ./build.sh
+    startCommand: cd backend && gunicorn config.wsgi --workers 2 --timeout 60
+    healthCheckPath: /login
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.1
+      - key: NODE_VERSION
+        value: 22.12.0
+      - key: DEBUG
+        value: "0"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      # Sinov uchun demo ma'lumotlar: SEED_DEMO=1 va DEMO_PASSWORD bering
+      - key: SEED_DEMO
+        value: "0"
+      - key: DEMO_PASSWORD
+        sync: false

@@ -38,7 +38,7 @@ python manage.py seed_demo        # ixtiyoriy: demo ma'lumotlar
 python manage.py runserver        # http://127.0.0.1:8000
 ```
 
-Demo kirish: `admin` / `admin12345`. Xodimlar: `aziz` (menejer), `malika`, `jasur`, `dilnoza` (mutaxassis), `nodira` (buxgalter), paroli `demo12345`.
+Demo kirish (faqat lokal): `admin` / `admin12345`. Xodimlar: `aziz` (menejer), `malika`, `jasur`, `dilnoza` (mutaxassis), `nodira` (buxgalter), paroli `demo12345`.
 
 Django admin paneli: http://127.0.0.1:8000/admin/
 
@@ -58,12 +58,30 @@ Vite `/api` so'rovlarini avtomatik ravishda `127.0.0.1:8000` ga yo'naltiradi.
 cd backend && python manage.py test tests
 ```
 
-## Production
+## Bepul serverga joylashtirish (Render + Neon)
 
-1. `backend/.env.example` faylidan `backend/.env` yarating, `SECRET_KEY`, `DEBUG=0` va PostgreSQL ma'lumotlarini kiriting.
-2. `pip install gunicorn && gunicorn config.wsgi` bilan backendni ishga tushiring.
-3. `cd frontend && npm run build` — `dist/` papkasini nginx orqali tarqating, `/api/` va `/media/` ni backendga proxy qiling.
-4. `python manage.py collectstatic` — Django admin statik fayllari uchun.
+Backend va frontend bitta Render xizmatida ishlaydi, ma'lumotlar bazasi Neon'da (bepul PostgreSQL).
+
+1. **Neon**: https://neon.tech da ro'yxatdan o'ting, yangi loyiha yarating (region: Frankfurt) va **Connection string** ni nusxalang (`postgresql://...`).
+2. **Render**: https://render.com ga GitHub orqali kiring → **New → Blueprint** → `agency-erp` repozitoriyasini tanlang. `render.yaml` avtomatik o'qiladi.
+3. So'ralgan qiymatlarni kiriting:
+   - `DATABASE_URL` — Neon connection string
+   - `ADMIN_USERNAME`, `ADMIN_PASSWORD` — tizimga kirish uchun administrator (kuchli parol!)
+   - `DEMO_PASSWORD` — faqat `SEED_DEMO=1` bo'lsa demo xodimlar paroli; aks holda bo'sh qoldiring
+4. **Apply** ni bosing. Build 3–5 daqiqa davom etadi, keyin `https://agency-erp-xxxx.onrender.com` havolasi ishlaydi.
+
+Har safar `main` ga push qilinganda Render avtomatik qayta joylashtiradi (migratsiyalar ham avtomatik).
+
+**Bepul tarif cheklovlari:**
+- 15 daqiqa hech kim kirmasa server "uxlaydi", keyingi kirishda ~1 daqiqa uyg'onadi.
+- Yuklangan fayllar (shartnomalar) qayta joylashtirishda o'chadi — doimiy saqlash uchun pullik disk yoki S3/Cloudflare R2 kerak.
+- Neon: 0.5 GB ma'lumot — kichik agentlik uchun yillarga yetadi.
+
+Jamoa faol ishlata boshlaganda Render Starter ($7/oy) ga o'tish tavsiya etiladi.
+
+### Boshqa server (VPS)
+
+`build.sh` ni ishga tushiring, so'ng `cd backend && gunicorn config.wsgi`. Muhit o'zgaruvchilari: `DEBUG=0`, `SECRET_KEY`, `ALLOWED_HOSTS`, `DATABASE_URL`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`. Django frontend'ni (`frontend/dist`) o'zi beradi.
 
 ## API
 
