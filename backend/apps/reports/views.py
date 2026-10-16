@@ -14,6 +14,8 @@ from apps.clients.models import Client, Lead
 from apps.content.models import ContentPost
 from apps.finance.models import AdSpend, Expense, Invoice, Payment
 from apps.projects.models import Project, Task, TimeEntry
+from apps.team.models import AgencySettings, Attendance, PayrollEntry
+from apps.team.views import can_mark_attendance, generate_payroll, tracked_users
 
 MONEY = DecimalField(max_digits=16, decimal_places=2)
 ZERO = Value(Decimal("0"), output_field=MONEY)
@@ -69,6 +71,8 @@ def dashboard(request):
         ),
     }
 
+    data["alerts"] = _alerts(user, today)
+
     if can_see_finance(user):
         revenue = _sum(Payment.objects.filter(date__gte=month_start, date__lte=today))
         expenses = _sum(Expense.objects.filter(date__gte=month_start, date__lte=today))
@@ -102,6 +106,45 @@ def dashboard(request):
             ],
         }
     return Response(data)
+
+
+MONTHS_UZ = ["yanvar", "fevral", "mart", "aprel", "may", "iyun", "iyul", "avgust", "sentabr", "oktabr",
+             "noyabr", "dekabr"]
+
+
+def _alerts(user, today):
+    """Bosh sahifadagi ogohlantirishlar: davomat, oylik kuni, muddati o'tgan vazifalar."""
+    s = AgencySettings.get()
+    alerts = []
+    if can_mark_attendance(user) and s.is_workday(today):
+        marked = Attendance.objects.filter(date=today).values_list("user_id", flat=True)
+        n = tracked_users().exclude(pk__in=marked).count()
+        if n:
+            alerts.append({"tone": "warn", "icon": "clock", "link": "/attendance",
+                           "action": "Belgilash", "text": f"Bugungi davomat: {n} xodim hali belgilanmagan"})
+    if user.is_admin or user.role == "accountant":
+        pay, start, end = s.pay_period(today)
+        days_ago = (today - pay).days
+        if days_ago <= 7:
+            generate_payroll(pay, start, end)
+            left = sum((e.balance for e in PayrollEntry.objects.filter(pay_date=pay)), Decimal("0"))
+            if left > 0:
+                when = "bugun" if days_ago == 0 else f"{days_ago} kun oldin o'tdi"
+                alerts.append({"tone": "bad", "icon": "calendar", "link": "/payroll", "action": "Vedomost",
+                               "text": f"Oylik kuni ({pay.day}-{MONTHS_UZ[pay.month - 1]}) {when} — "
+                                       f"xodimlarga {left:,.0f} so'm to'lanishi kerak".replace(",", " ")})
+        nxt = pay.replace(year=pay.year + (pay.month == 12), month=pay.month % 12 + 1)
+        if 0 < (nxt - today).days <= 3:
+            alerts.append({"tone": "info", "icon": "calendar", "link": "/payroll", "action": "Vedomost",
+                           "text": f"Oylik kuni yaqinlashmoqda: {nxt.day}-{MONTHS_UZ[nxt.month - 1]}"})
+    overdue = Task.objects.exclude(status=Task.Status.DONE).filter(due_date__lt=today)
+    if not (user.is_admin or user.role == "manager"):
+        overdue = overdue.filter(assignee=user)
+    n = overdue.count()
+    if n:
+        alerts.append({"tone": "bad", "icon": "alarm", "link": "/tasks?overdue=1", "action": "Ko'rish",
+                       "text": f"{n} ta vazifaning muddati o'tib ketgan"})
+    return alerts
 
 
 def _parse_period(request):

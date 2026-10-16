@@ -16,6 +16,23 @@ class User(AbstractUser):
     salary = models.DecimalField("Oylik maosh", max_digits=14, decimal_places=2, default=0)
     hired_at = models.DateField("Ishga kirgan sana", null=True, blank=True)
 
+    class WorkFormat(models.TextChoices):
+        OFFICE = "office", "Ofisda"
+        REMOTE = "remote", "Masofadan"
+        HYBRID = "hybrid", "Aralash"
+
+    class EmployeeType(models.TextChoices):
+        PERMANENT = "permanent", "Doimiy xodim"
+        TRIAL = "trial", "Sinov muddatida"
+        INTERN = "intern", "Shogird / amaliyotchi"
+        FREELANCE = "freelance", "Frilanser"
+
+    work_format = models.CharField("Ish formati", max_length=20, choices=WorkFormat.choices, default=WorkFormat.OFFICE)
+    employee_type = models.CharField(
+        "Xodim turi", max_length=20, choices=EmployeeType.choices, default=EmployeeType.PERMANENT
+    )
+    track_attendance = models.BooleanField("Davomatda hisobga olinadi", default=True)
+
     class Meta:
         verbose_name = "Xodim"
         verbose_name_plural = "Xodimlar"

@@ -26,7 +26,10 @@ export function TaskBoard({ projectId }: { projectId?: number }) {
   const [tasks, setTasks] = useState<Row[]>([])
   const [assignee, setAssignee] = useState(projectId ? '' : params.get('assignee') ?? '')
   const [project, setProject] = useState('')
-  const [editing, setEditing] = useState<Row | null>(null)
+  const [editing, setEditing] = useState<Row | null>(
+    !projectId && params.get('new') ? { assignee: user?.id } : null,
+  )
+  const [overdueOnly, setOverdueOnly] = useState(!projectId && params.get('overdue') === '1')
   const [viewing, setViewing] = useState<number | null>(Number(params.get('open')) || null)
   const [dragId, setDragId] = useState<number | null>(null)
   const [error, setError] = useState('')
@@ -72,13 +75,16 @@ export function TaskBoard({ projectId }: { projectId?: number }) {
           {user && <option value={user.id}>Faqat menikilar</option>}
           {users.filter((u) => u.id !== user?.id).map((u) => <option key={u.id} value={u.id}>{refLabel(u)}</option>)}
         </select>
+        <button className={`btn ${overdueOnly ? 'btn-on' : ''}`} onClick={() => setOverdueOnly(!overdueOnly)}>
+          {overdueOnly ? '✓ ' : ''}Faqat kechikkanlar
+        </button>
         <button className="btn btn-primary" onClick={() => setEditing({ project: projectId, assignee: user?.id })}>+ Vazifa</button>
       </div>
       {error && <div className="alert">{error}</div>}
 
       <div className="kanban">
         {STATUSES.map((s) => {
-          const col = tasks.filter((t) => t.status === s)
+          const col = tasks.filter((t) => t.status === s && (!overdueOnly || (t.due_date && t.due_date < today && t.status !== 'done')))
           return (
             <div key={s} className="kanban-col"
               onDragOver={(e) => e.preventDefault()}

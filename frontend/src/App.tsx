@@ -12,6 +12,11 @@ import {
   ProjectsPage, TimeEntriesPage, UsersPage,
 } from './pages/simple'
 import TasksPage from './pages/Tasks'
+import AttendancePage from './pages/Attendance'
+import NotesPage from './pages/Notes'
+import PayrollPage from './pages/Payroll'
+import ProfilePage from './pages/Profile'
+import SettingsPage from './pages/Settings'
 
 function Protected({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
@@ -46,6 +51,11 @@ export default function App() {
             <Route path="ad-spends" element={<FinanceOnly><AdSpendsPage /></FinanceOnly>} />
             <Route path="reports/finance" element={<FinanceOnly><FinanceReport /></FinanceOnly>} />
             <Route path="users" element={<UsersPage />} />
+            <Route path="attendance" element={<AttendancePage />} />
+            <Route path="notes" element={<NotesPage />} />
+            <Route path="payroll" element={<FinanceOnly><PayrollPage /></FinanceOnly>} />
+            <Route path="profile" element={<ProfilePage />} />
+            <Route path="settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

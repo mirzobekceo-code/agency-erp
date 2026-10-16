@@ -13,6 +13,7 @@ class UserSerializer(serializers.ModelSerializer):
         fields = [
             "id", "username", "password", "first_name", "last_name", "full_name", "email",
             "role", "role_display", "position", "phone", "telegram", "salary", "hired_at", "is_active",
+            "work_format", "employee_type", "track_attendance",
         ]
 
     def get_full_name(self, obj):
@@ -54,10 +55,18 @@ class MeSerializer(UserSerializer):
     can_see_finance = serializers.SerializerMethodField()
 
     class Meta(UserSerializer.Meta):
-        fields = UserSerializer.Meta.fields + ["is_superuser", "can_see_finance"]
-        read_only_fields = ["username", "role", "salary", "is_active", "is_superuser"]
+        fields = UserSerializer.Meta.fields + ["is_superuser", "can_see_finance", "can_mark_attendance"]
+        read_only_fields = ["username", "role", "salary", "is_active", "is_superuser", "work_format",
+                            "employee_type", "track_attendance"]
 
     def get_can_see_finance(self, obj):
         from .permissions import can_see_finance
 
         return can_see_finance(obj)
+
+    can_mark_attendance = serializers.SerializerMethodField()
+
+    def get_can_mark_attendance(self, obj):
+        from apps.team.views import can_mark_attendance
+
+        return can_mark_attendance(obj)

@@ -4,7 +4,7 @@ import { api, errorText, type Row } from '../api'
 import { useAuth } from '../auth'
 import RevenueChart from '../components/RevenueChart'
 import { Badge, PageHead, Stat } from '../components/ui'
-import { L, fmtDate, fmtDateTime, money } from '../labels'
+import { L, fmtDate, fmtDateTime, longDateUz, money } from '../labels'
 
 export default function Dashboard() {
   const { user } = useAuth()
@@ -24,7 +24,22 @@ export default function Dashboard() {
 
   return (
     <>
-      <PageHead title={`Xush kelibsiz, ${user?.full_name}`} />
+      <PageHead title={`Salom, ${user?.full_name}`}>
+        <Link to="/tasks?new=1" className="btn btn-primary">+ Vazifa</Link>
+      </PageHead>
+      <p className="page-sub">{longDateUz()}</p>
+
+      {d.alerts?.length > 0 && (
+        <div className="alerts">
+          {d.alerts.map((a: Row, i: number) => (
+            <Link key={i} to={a.link} className={`alert-bar alert-${a.tone}`}>
+              <span className="alert-icon" aria-hidden>{({ clock: '⏰', calendar: '📅', alarm: '⚠️' } as Record<string, string>)[a.icon] ?? '•'}</span>
+              <span className="alert-text">{a.text}</span>
+              <span className="alert-action">{a.action} →</span>
+            </Link>
+          ))}
+        </div>
+      )}
 
       <div className="stats">
         <Stat label="Faol mijozlar" value={d.clients_active} />

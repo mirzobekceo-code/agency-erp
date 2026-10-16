@@ -9,6 +9,8 @@ export interface Me {
   role_display: string
   is_superuser: boolean
   can_see_finance: boolean
+  can_mark_attendance: boolean
+  position?: string
 }
 
 interface AuthCtx {

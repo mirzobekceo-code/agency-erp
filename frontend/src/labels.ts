@@ -50,6 +50,12 @@ export const money = (v: unknown) =>
     ? '—'
     : new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(Number(v)) + " so'm"
 
+const WEEKDAYS_UZ = ['Yakshanba', 'Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba']
+const MONTHS_UZ = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr']
+
+/** "Juma, 16-oktabr" — brauzerlarda o'zbek lokali yo'qligi uchun qo'lda. */
+export const longDateUz = (d = new Date()) => `${WEEKDAYS_UZ[d.getDay()]}, ${d.getDate()}-${MONTHS_UZ[d.getMonth()]}`
+
 export const num = (v: unknown) => new Intl.NumberFormat('ru-RU').format(Number(v ?? 0))
 
 export const fmtDate = (v?: string | null) => {

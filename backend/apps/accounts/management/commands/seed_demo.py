@@ -13,6 +13,7 @@ from apps.clients.models import Client, Contract, Lead
 from apps.content.models import ContentPost
 from apps.finance.models import AdSpend, Expense, Invoice, Payment
 from apps.projects.models import Project, Task, TimeEntry
+from apps.team.models import AgencySettings, Attendance, Note
 
 
 class Command(BaseCommand):
@@ -128,7 +129,37 @@ class Command(BaseCommand):
             Lead.objects.create(name=name, stage=stage, source=src, assigned_to=manager,
                                 expected_value=Decimal(random.randint(5, 20) * 1_000_000), service="SMM + target")
 
+        seed_team(staff, projects, today)
+
         self.stdout.write(self.style.SUCCESS(
             "Demo ma'lumotlar yaratildi. Xodimlar: aziz, malika, jasur, dilnoza, nodira "
             "(parol: DEMO_PASSWORD yoki lokalda demo12345; lokal admin: admin / admin12345)"
         ))
+
+
+def seed_team(staff, projects, today):
+    """So'nggi 3 hafta davomati va bir nechta yozuv."""
+    from datetime import time
+
+    s = AgencySettings.get()
+    for back in range(1, 22):
+        d = today - timedelta(days=back)
+        if not s.is_workday(d):
+            continue
+        for u in staff:
+            r = random.random()
+            if r < 0.06:
+                Attendance.objects.create(user=u, date=d, status="absent")
+            elif r < 0.1:
+                Attendance.objects.create(user=u, date=d, status="excused", note="Kasal")
+            else:
+                late = random.random() < 0.15
+                Attendance.objects.create(
+                    user=u, date=d, status="present",
+                    check_in=time(9, random.randint(10, 55)) if late else time(8, random.randint(40, 59)),
+                    check_out=time(18, random.randint(0, 30)),
+                )
+    Note.objects.create(title="Samarqand Non: brief", kind="brief", project=projects[0], author=staff[0], shared=True,
+                        body="Maqsad: yangi non turlarini tanishtirish.\nAuditoriya: 25–45 yosh oilalar.\nTon: iliq, uy nonidek.")
+    Note.objects.create(title="Reels g'oyalari", kind="idea", author=staff[1], shared=True,
+                        body="1. Tandirdan non chiqishi (ASMR)\n2. Mijoz fikrlari\n3. Bir kun novvoyxonada")

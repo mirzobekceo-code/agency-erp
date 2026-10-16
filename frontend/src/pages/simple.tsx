@@ -331,7 +331,7 @@ export function UsersPage() {
   const admin = can()
   return (
     <CrudPage
-      title="Xodimlar" endpoint="/users/" canEdit={admin}
+      title="Jamoa" endpoint="/users/" canEdit={admin}
       filters={[{ name: 'role', label: 'Rol', options: L.role }]}
       columns={[
         { key: 'full_name', label: 'F.I.Sh.' },
@@ -354,6 +354,11 @@ export function UsersPage() {
         { name: 'email', label: 'Email', type: 'email' },
         { name: 'salary', label: 'Oylik maosh', type: 'money', default: 0 },
         { name: 'hired_at', label: 'Ishga kirgan sana', type: 'date' },
+        { name: 'work_format', label: 'Ish formati', type: 'select', required: true, default: 'office',
+          options: { office: 'Ofisda', remote: 'Masofadan', hybrid: 'Aralash' } },
+        { name: 'employee_type', label: 'Xodim turi', type: 'select', required: true, default: 'permanent',
+          options: { permanent: 'Doimiy xodim', trial: 'Sinov muddatida', intern: 'Shogird / amaliyotchi', freelance: 'Frilanser' } },
+        { name: 'track_attendance', label: 'Davomatda hisobga olinadi', type: 'checkbox', default: true },
         { name: 'is_active', label: 'Faol', type: 'checkbox', default: true },
       ]}
     />
