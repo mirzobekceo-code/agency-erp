@@ -9,7 +9,9 @@ const short = (v: number) =>
   Math.abs(v) >= 1e9 ? `${+(v / 1e9).toFixed(1)} mlrd` : Math.abs(v) >= 1e6 ? `${+(v / 1e6).toFixed(1)} mln` : String(v)
 
 /** Oylar kesimida tushum va xarajat (ikki seriya, bitta o'q). */
-export default function RevenueChart({ data }: { data: MonthRow[] }) {
+export default function RevenueChart({ data, labels = { revenue: 'Tushum', expenses: 'Xarajat' } }: {
+  data: MonthRow[]; labels?: { revenue: string; expenses: string }
+}) {
   const rows = data.map((d) => ({
     ...d,
     revenue: Number(d.revenue),
@@ -30,15 +32,15 @@ export default function RevenueChart({ data }: { data: MonthRow[] }) {
             labelStyle={{ color: 'var(--text)', fontWeight: 600 }}
             itemStyle={{ color: 'var(--text)' }}
           />
-          <Legend iconType="square" wrapperStyle={{ fontSize: 13, color: 'var(--text-2)' }} />
-          <Bar dataKey="revenue" name="Tushum" fill="var(--series-1)" radius={[4, 4, 0, 0]} maxBarSize={28} />
-          <Bar dataKey="expenses" name="Xarajat" fill="var(--series-2)" radius={[4, 4, 0, 0]} maxBarSize={28} />
+          <Legend iconType="square" itemSorter={(item) => (item.dataKey === 'revenue' ? 0 : 1)} wrapperStyle={{ fontSize: 13, color: 'var(--text-2)' }} />
+          <Bar dataKey="revenue" name={labels.revenue} fill="var(--series-1)" radius={[4, 4, 0, 0]} maxBarSize={28} />
+          <Bar dataKey="expenses" name={labels.expenses} fill="var(--series-2)" radius={[4, 4, 0, 0]} maxBarSize={28} />
         </BarChart>
       </ResponsiveContainer>
       <details className="chart-table">
         <summary>Jadval ko'rinishi</summary>
         <table className="table compact">
-          <thead><tr><th>Oy</th><th className="r">Tushum</th><th className="r">Xarajat</th><th className="r">Foyda</th></tr></thead>
+          <thead><tr><th>Oy</th><th className="r">{labels.revenue}</th><th className="r">{labels.expenses}</th><th className="r">Farq</th></tr></thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.month}><td>{r.label}</td><td className="r">{money(r.revenue)}</td><td className="r">{money(r.expenses)}</td><td className="r">{money(r.revenue - r.expenses)}</td></tr>

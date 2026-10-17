@@ -380,3 +380,78 @@ label.check { display: inline-flex; align-items: center; gap: 5px; margin-top: 4
 .time-cell .input { width: 128px; }
 .sticky-actions { position: static; }
 .notes-editor .toolbar label.check, .card .toolbar label.check { color: var(--text-2); }
+
+/* ---------- Bosh sahifa va Moliya (umumiy holat) ---------- */
+.on-bg { color: var(--on-bg); }
+.text-good { color: var(--good); }
+.nav-title-link { display: block; }
+.nav-title-link:hover { color: #fff; text-decoration: none; }
+.stat-link { color: var(--text); display: block; transition: transform 0.1s, box-shadow 0.1s; }
+.stat-link:hover { text-decoration: none; transform: translateY(-1px); box-shadow: 0 10px 28px rgba(8, 12, 60, 0.25); }
+.stat-value.big { font-size: 34px; line-height: 1.1; }
+.dash-stats .stat { padding: 18px 20px; }
+.card-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.card-head h3 { margin: 0; }
+.dash-grid { display: grid; grid-template-columns: 3fr 2fr; gap: 16px; margin-bottom: 16px; }
+.dash-grid .card { margin-bottom: 0; }
+
+.task-list, .post-list { list-style: none; margin: 0; padding: 0; }
+.task-list li, .post-list li { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--grid); }
+.task-list li:last-child, .post-list li:last-child { border-bottom: 0; }
+.check-btn { width: 22px; height: 22px; border: 2px solid var(--border); border-radius: 6px; background: var(--surface); cursor: pointer; flex-shrink: 0; }
+.check-btn:hover { border-color: var(--good); background: var(--good-bg); }
+.task-main, .post-main { flex: 1; min-width: 0; color: var(--text); }
+.task-main:hover { text-decoration: none; }
+.task-main:hover .task-title { color: var(--accent); }
+.task-title { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-due { white-space: nowrap; min-width: 92px; text-align: right; }
+.date-tile { width: 50px; height: 52px; border-radius: 10px; background: var(--surface-2); display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; }
+.date-tile b { font-size: 19px; line-height: 1; }
+.date-tile span { font-size: 10px; color: var(--muted); letter-spacing: 0.05em; margin-top: 2px; }
+.post-badges { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.type-chip { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--info-bg); color: var(--info); white-space: nowrap; }
+
+.progress-list { display: flex; flex-direction: column; gap: 10px; }
+.progress-row { display: grid; grid-template-columns: minmax(120px, 220px) 1fr auto; align-items: center; gap: 12px; color: var(--text); }
+a.progress-row:hover { text-decoration: none; }
+a.progress-row:hover .progress-name { color: var(--accent); }
+.progress-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.progress-track { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.progress-track span { display: block; height: 100%; background: var(--series-1); border-radius: 999px; }
+.progress-pct { font-variant-numeric: tabular-nums; color: var(--text-2); min-width: 40px; text-align: right; }
+.progress-amt { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.fin-links { display: flex; gap: 14px; flex-wrap: wrap; margin-left: auto; }
+.fin-links a { color: var(--on-bg); opacity: 0.85; font-size: 13.5px; }
+.fin-links a:hover { opacity: 1; }
+.fin-stats { grid-template-columns: repeat(3, 1fr); }
+.fin-grid { display: grid; grid-template-columns: 3fr 2fr; gap: 16px; margin-bottom: 16px; }
+.fin-grid .card { margin-bottom: 0; }
+.stack-bar { display: flex; gap: 2px; height: 22px; border-radius: 6px; overflow: hidden; background: var(--surface); margin: 6px 0 14px; }
+.stack-bar span { min-width: 3px; }
+.breakdown { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.breakdown li { display: grid; grid-template-columns: 12px 1fr auto auto; gap: 10px; align-items: center; }
+.breakdown i { width: 12px; height: 12px; border-radius: 3px; }
+.bd-pct { color: var(--text-2); font-variant-numeric: tabular-nums; min-width: 36px; text-align: right; }
+.bd-amount { font-variant-numeric: tabular-nums; min-width: 120px; text-align: right; }
+.bd-total { display: flex; justify-content: space-between; border-top: 1px solid var(--grid); margin-top: 12px; padding-top: 10px; }
+
+@media (max-width: 1100px) {
+  .dash-grid, .fin-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 860px) {
+  .fin-stats { grid-template-columns: 1fr 1fr; }
+  .fin-links { margin-left: 0; width: 100%; }
+  .task-due { min-width: 0; }
+  .progress-row { grid-template-columns: 1fr auto; }
+  .progress-row .progress-track { grid-column: 1 / -1; grid-row: 2; }
+  .stat-value.big { font-size: 26px; }
+}
+.month-nav { display: flex; align-items: center; gap: 8px; }
+@media (max-width: 860px) {
+  .toolbar > .month-nav { flex: 1 1 100%; justify-content: space-between; }
+  .recent-sub { display: none; }
+}
+.dash-grid, .fin-grid { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+.dash-grid > *, .fin-grid > *, .stats > * { min-width: 0; }
+@media (max-width: 1100px) { .dash-grid, .fin-grid { grid-template-columns: minmax(0, 1fr); } }

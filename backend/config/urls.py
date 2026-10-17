@@ -9,7 +9,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from apps.accounts.views import MeView, UserViewSet, change_password
 from apps.clients.views import ClientViewSet, ContractViewSet, LeadViewSet
 from apps.content.views import ContentPostViewSet
-from apps.finance.views import AdSpendViewSet, ExpenseViewSet, InvoiceViewSet, PaymentViewSet
+from apps.finance.views import AdSpendViewSet, ExpenseViewSet, InvoiceViewSet, PaymentViewSet, receive_payment
 from apps.projects.views import ProjectViewSet, TaskCommentViewSet, TaskViewSet, TimeEntryViewSet
 from apps.reports import views as reports
 from apps.team import views as team
@@ -46,6 +46,8 @@ urlpatterns = [
     path("api/payroll/mine/", team.my_payroll),
     path("api/reports/dashboard/", reports.dashboard),
     path("api/reports/finance/", reports.finance_report),
+    path("api/reports/finance-overview/", reports.finance_overview),
+    path("api/finance/receive/", receive_payment),
     path("api/reports/projects/<int:pk>/", reports.project_report),
     path("api/", include(router.urls)),
     # Yuklangan fayllar (shartnomalar). Kichik jamoa uchun yetarli; ko'p fayl bo'lsa S3/R2 ga o'tkazing.

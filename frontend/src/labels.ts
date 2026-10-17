@@ -56,6 +56,20 @@ const MONTHS_UZ = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', '
 /** "Juma, 16-oktabr" — brauzerlarda o'zbek lokali yo'qligi uchun qo'lda. */
 export const longDateUz = (d = new Date()) => `${WEEKDAYS_UZ[d.getDay()]}, ${d.getDate()}-${MONTHS_UZ[d.getMonth()]}`
 
+/** Muddatni odam tilida: "Bugun", "Ertaga", "2 kun kechikdi", "Payshanba", "24-okt". */
+export const relDay = (iso?: string | null): { text: string; tone: string } => {
+  if (!iso) return { text: 'Muddatsiz', tone: 'muted' }
+  const d = new Date(iso + 'T00:00:00')
+  const t = new Date(); t.setHours(0, 0, 0, 0)
+  const diff = Math.round((d.getTime() - t.getTime()) / 86400000)
+  if (diff < -1) return { text: `${-diff} kun kechikdi`, tone: 'text-bad' }
+  if (diff === -1) return { text: 'Kecha', tone: 'text-bad' }
+  if (diff === 0) return { text: 'Bugun', tone: 'text-warn' }
+  if (diff === 1) return { text: 'Ertaga', tone: '' }
+  if (diff < 7) return { text: WEEKDAYS_UZ[d.getDay()], tone: 'muted' }
+  return { text: `${d.getDate()}-${MONTHS_UZ[d.getMonth()].slice(0, 3)}`, tone: 'muted' }
+}
+
 export const num = (v: unknown) => new Intl.NumberFormat('ru-RU').format(Number(v ?? 0))
 
 export const fmtDate = (v?: string | null) => {

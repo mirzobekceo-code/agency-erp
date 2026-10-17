@@ -88,9 +88,10 @@ class FinanceTests(BaseAPITest):
         inv = self._invoice()
         self.client.post("/api/payments/", {"invoice": inv["id"], "amount": "300"})
         self.client.post("/api/expenses/", {"category": "office", "amount": "100"})
-        fin = self.client.get("/api/reports/dashboard/").data["finance"]
-        self.assertEqual(fin["revenue_month"], Decimal("300"))
-        self.assertEqual(fin["profit_month"], Decimal("200"))
+        fin = self.client.get("/api/reports/finance-overview/").data
+        self.assertEqual(fin["revenue"], Decimal("300"))
+        self.assertEqual(fin["other_expenses"], Decimal("100"))
+        self.assertEqual(fin["profit"], Decimal("200"))
         self.assertEqual(fin["receivables"], Decimal("700"))
 
 

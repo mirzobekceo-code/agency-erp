@@ -90,12 +90,14 @@ function DayView() {
   return (
     <>
       <div className="toolbar">
+        <div className="month-nav">
         <button className="btn" onClick={() => setDate(shiftDay(date, -1))} aria-label="Oldingi kun">←</button>
         <div className="day-title">
           <strong>{d.getDate()}-{MONTHS[d.getMonth()]}</strong>
           <span>{WD[(d.getDay() + 6) % 7]}{isToday ? ' · bugun' : ''}{!data.is_workday ? ' · dam olish kuni' : ''}</span>
         </div>
         <button className="btn" onClick={() => setDate(shiftDay(date, 1))} aria-label="Keyingi kun">→</button>
+        </div>
         <input className="input" type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} />
         {!isToday && <button className="btn" onClick={() => setDate(todayISO())}>Bugun</button>}
       </div>

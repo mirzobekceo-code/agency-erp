@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './auth'
 import Layout from './components/Layout'
 import ContentPage from './pages/Content'
 import Dashboard from './pages/Dashboard'
+import FinanceOverview from './pages/FinanceOverview'
 import FinanceReport from './pages/FinanceReport'
 import Login from './pages/Login'
 import ProjectDetail from './pages/ProjectDetail'
@@ -45,6 +46,7 @@ export default function App() {
             <Route path="tasks" element={<TasksPage />} />
             <Route path="time" element={<TimeEntriesPage />} />
             <Route path="content" element={<ContentPage />} />
+            <Route path="finance" element={<FinanceOnly><FinanceOverview /></FinanceOnly>} />
             <Route path="invoices" element={<FinanceOnly><InvoicesPage /></FinanceOnly>} />
             <Route path="payments" element={<FinanceOnly><PaymentsPage /></FinanceOnly>} />
             <Route path="expenses" element={<FinanceOnly><ExpensesPage /></FinanceOnly>} />

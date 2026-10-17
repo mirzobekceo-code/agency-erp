@@ -5,7 +5,9 @@ import { useAuth } from '../auth'
 
 interface Item { to: string; label: string; finance?: boolean }
 
-const groups: { title: string; items: Item[] }[] = [
+// title link berilsa, guruh sarlavhasi bosilganda o'sha sahifa ochiladi
+
+const groups: { title: string; link?: string; items: Item[] }[] = [
   {
     title: 'Ish',
     items: [
@@ -34,7 +36,9 @@ const groups: { title: string; items: Item[] }[] = [
   },
   {
     title: 'Moliya',
+    link: '/finance',
     items: [
+      { to: '/finance', label: 'Umumiy holat', finance: true },
       { to: '/invoices', label: 'Hisob-fakturalar', finance: true },
       { to: '/payments', label: "To'lovlar", finance: true },
       { to: '/expenses', label: 'Xarajatlar', finance: true },
@@ -66,7 +70,8 @@ export default function Layout() {
             if (!items.length) return null
             return (
               <div key={g.title} className="nav-group">
-                <div className="nav-title">{g.title}</div>
+                {g.link ? <NavLink to={g.link} className="nav-title nav-title-link">{g.title}</NavLink>
+                  : <div className="nav-title">{g.title}</div>}
                 {items.map((i) => (
                   <NavLink key={i.to} to={i.to} end={i.to === '/'} className="nav-link">{i.label}</NavLink>
                 ))}

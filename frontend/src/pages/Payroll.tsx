@@ -37,12 +37,14 @@ export default function PayrollPage() {
       {data && (
         <>
           <div className="toolbar">
+            <div className="month-nav">
             <button className="btn" onClick={() => shift(-1)}>←</button>
             <div className="day-title">
               <strong>Oylik: {fmtDate(data.pay_date)}</strong>
               <span>{fmtDate(data.period_start)} – {fmtDate(data.period_end)} ishlangani uchun</span>
             </div>
             <button className="btn" onClick={() => shift(1)}>→</button>
+            </div>
           </div>
           <div className="stats">
             <Stat label="Jami hisoblangan" value={money(data.total)} />

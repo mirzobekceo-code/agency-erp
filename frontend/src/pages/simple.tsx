@@ -4,7 +4,7 @@ import { api, errorText, type Row } from '../api'
 import { useAuth } from '../auth'
 import CrudPage, { RecordForm, type Field } from '../components/CrudPage'
 import { Badge, invalidateRefs } from '../components/ui'
-import { L, fmtDate, money, num, todayISO } from '../labels'
+import { L, fmtDate, money, num, relDay, todayISO } from '../labels'
 
 const badge = (map: Record<string, string>, key: string) => (r: Row) => <Badge value={r[key]} label={map[r[key]]} />
 
@@ -61,6 +61,11 @@ export function LeadsPage() {
         { key: 'source', label: 'Manba', render: (r) => L.leadSource[r.source as keyof typeof L.leadSource] },
         { key: 'expected_value', label: 'Kutilayotgan summa', align: 'right', render: (r) => money(r.expected_value) },
         { key: 'assigned_to_name', label: "Mas'ul" },
+        {
+          key: 'next_action', label: 'Keyingi qadam', render: (r) => r.next_action_date
+            ? <span className={relDay(r.next_action_date).tone}>{r.next_action || 'Aloqa'} · {relDay(r.next_action_date).text}</span>
+            : (r.next_action || '—'),
+        },
         { key: 'stage', label: 'Bosqich', render: badge(L.leadStage, 'stage') },
       ]}
       rowActions={(row, reload) =>
@@ -77,6 +82,8 @@ export function LeadsPage() {
         { name: 'service', label: 'Qiziqqan xizmat' },
         { name: 'expected_value', label: 'Kutilayotgan summa', type: 'money', default: 0 },
         { name: 'assigned_to', label: "Mas'ul", type: 'ref', ref: '/users/' },
+        { name: 'next_action', label: 'Keyingi qadam', full: true },
+        { name: 'next_action_date', label: 'Keyingi qadam sanasi', type: 'date' },
         { name: 'notes', label: 'Izoh', type: 'textarea' },
       ]}
     />

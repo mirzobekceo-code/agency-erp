@@ -290,7 +290,7 @@ function FieldInput({ f, value, onChange }: { f: Field; value: Row[string]; onCh
       const type = (f.type && types[f.type]) || 'text'
       return (
         <input className="input" type={type} value={value ?? ''} required={f.required}
-          step={f.type === 'money' ? '1000' : f.type === 'number' ? 'any' : undefined} min={f.type === 'money' ? 0 : undefined}
+          step={f.type === 'money' || f.type === 'number' ? 'any' : undefined} min={f.type === 'money' ? 0 : undefined}
           onChange={(e) => onChange(e.target.value)} />
       )
     }

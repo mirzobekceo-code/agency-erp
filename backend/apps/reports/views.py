@@ -40,72 +40,173 @@ def _receivables():
     return total - paid
 
 
+def _my_projects(user):
+    """Rahbar hamma loyihani, qolganlar o'zi menejer yoki a'zo bo'lganlarini ko'radi."""
+    qs = Project.objects.all()
+    if not user.is_admin:
+        qs = qs.filter(Q(manager=user) | Q(members=user)).distinct()
+    return qs
+
+
+def _visible_leads(user):
+    if user.is_admin or user.role == "manager":
+        return Lead.objects.all()
+    return Lead.objects.filter(assigned_to=user)
+
+
 @api_view(["GET"])
 def dashboard(request):
+    """Shaxsiy bosh sahifa: faqat foydalanuvchining o'z vazifalari, davomati, loyihalari va nashrlari."""
     today = timezone.localdate()
-    month_start = _month_start(today)
     user = request.user
+    s = AgencySettings.get()
 
-    open_tasks = Task.objects.exclude(status=Task.Status.DONE)
+    projects = _my_projects(user).filter(status=Project.Status.ACTIVE)
+    my_open = Task.objects.filter(assignee=user).exclude(status=Task.Status.DONE)
+    due_today = Task.objects.filter(assignee=user, due_date=today)
+    leads = _visible_leads(user)
+    active_leads = leads.exclude(stage__in=[Lead.Stage.WON, Lead.Stage.LOST])
+
+    posts = ContentPost.objects.filter(publish_at__date__gte=today, publish_at__date__lte=today + timedelta(days=7))
+    if not user.is_admin:
+        posts = posts.filter(Q(assignee=user) | Q(project__in=_my_projects(user))).distinct()
+
+    att = Attendance.objects.filter(user=user, date=today).first()
+    attendance = None
+    if user.track_attendance:
+        attendance = {
+            "workday": s.is_workday(today),
+            "status": att.status if att else "",
+            "status_display": att.get_status_display() if att else "",
+            "check_in": att.check_in if att else None,
+            "check_out": att.check_out if att else None,
+            "late": bool(att and att.status == "present" and att.check_in and att.check_in > s.work_start),
+            "fine": att.fine if att else Decimal("0"),
+            "work_start": s.work_start,
+        }
+
     data = {
-        "clients_active": Client.objects.filter(status=Client.Status.ACTIVE).count(),
-        "projects_active": Project.objects.filter(status=Project.Status.ACTIVE).count(),
-        "tasks_open": open_tasks.count(),
-        "tasks_overdue": open_tasks.filter(due_date__lt=today).count(),
+        "projects": {
+            "active": projects.count(),
+            "deadline_soon": projects.filter(deadline__gte=today, deadline__lte=today + timedelta(days=7)).count(),
+        },
+        "today_tasks": {
+            "total": due_today.count(),
+            "done": due_today.filter(status=Task.Status.DONE).count(),
+            "overdue": my_open.filter(due_date__lt=today).count(),
+        },
+        "leads": {
+            "new": leads.filter(stage=Lead.Stage.NEW).count(),
+            "follow_up": active_leads.filter(next_action_date__lte=today).count(),
+            "visible": user.is_admin or user.role == "manager" or leads.exists(),
+        },
+        "attendance": attendance,
         "my_tasks": list(
-            open_tasks.filter(assignee=user)
-            .order_by(F("due_date").asc(nulls_last=True))
-            .values("id", "title", "status", "priority", "due_date", "project__name")[:10]
+            my_open.order_by(F("due_date").asc(nulls_last=True), "-priority")
+            .values("id", "title", "status", "priority", "due_date", "project__name")[:8]
         ),
-        "tasks_by_status": {
-            row["status"]: row["n"] for row in Task.objects.values("status").annotate(n=Count("id"))
-        },
-        "leads_by_stage": {
-            row["stage"]: row["n"] for row in Lead.objects.values("stage").annotate(n=Count("id"))
-        },
         "upcoming_posts": list(
-            ContentPost.objects.filter(publish_at__date__gte=today, publish_at__date__lte=today + timedelta(days=7))
-            .exclude(status=ContentPost.Status.PUBLISHED)
-            .order_by("publish_at")
-            .values("id", "title", "platform", "status", "publish_at", "project__name")[:10]
+            posts.order_by("publish_at")
+            .values("id", "title", "platform", "content_type", "status", "publish_at", "project__name")[:8]
         ),
+        "project_progress": [
+            {"id": p.id, "name": p.name, "total": p.t, "done": p.d}
+            for p in projects.annotate(
+                t=Count("tasks", distinct=True),
+                d=Count("tasks", filter=Q(tasks__status=Task.Status.DONE), distinct=True),
+            ).order_by("deadline")[:8]
+        ],
+        "alerts": _alerts(user, today),
     }
-
-    data["alerts"] = _alerts(user, today)
-
-    if can_see_finance(user):
-        revenue = _sum(Payment.objects.filter(date__gte=month_start, date__lte=today))
-        expenses = _sum(Expense.objects.filter(date__gte=month_start, date__lte=today))
-        six_months_ago = _month_start(today, 5)
-        rev_by_month = {
-            r["m"].strftime("%Y-%m"): r["s"]
-            for r in Payment.objects.filter(date__gte=six_months_ago)
-            .annotate(m=TruncMonth("date")).values("m").annotate(s=Sum("amount"))
-        }
-        exp_by_month = {
-            r["m"].strftime("%Y-%m"): r["s"]
-            for r in Expense.objects.filter(date__gte=six_months_ago)
-            .annotate(m=TruncMonth("date")).values("m").annotate(s=Sum("amount"))
-        }
-        months = [_month_start(today, i).strftime("%Y-%m") for i in range(5, -1, -1)]
-        data["finance"] = {
-            "revenue_month": revenue,
-            "expenses_month": expenses,
-            "profit_month": revenue - expenses,
-            "receivables": _receivables(),
-            "overdue_invoices": Invoice.objects.filter(
-                status__in=[Invoice.Status.SENT, Invoice.Status.PARTIAL], due_date__lt=today
-            ).count(),
-            "by_month": [
-                {
-                    "month": m,
-                    "revenue": rev_by_month.get(m, Decimal("0")),
-                    "expenses": exp_by_month.get(m, Decimal("0")),
-                }
-                for m in months
-            ],
-        }
     return Response(data)
+
+
+def _parse_month(request, today):
+    try:
+        y, m = map(int, request.query_params.get("month", "").split("-"))
+        return date(y, m, 1)
+    except ValueError:
+        return today.replace(day=1)
+
+
+@api_view(["GET"])
+def finance_overview(request):
+    """Moliya: umumiy holat. Tanlangan oy bo'yicha pul oqimi va joriy qarzlar."""
+    if not can_see_finance(request.user):
+        raise PermissionDenied()
+    today = timezone.localdate()
+    first = _parse_month(request, today)
+    nxt = _month_start(first + timedelta(days=32))
+    payments = Payment.objects.filter(date__gte=first, date__lt=nxt)
+    expenses = Expense.objects.filter(date__gte=first, date__lt=nxt)
+
+    revenue = _sum(payments)
+    salaries = _sum(expenses.filter(category=Expense.Category.SALARY))
+    other = _sum(expenses.exclude(category=Expense.Category.SALARY))
+    profit = revenue - salaries - other
+
+    s = AgencySettings.get()
+    pay, start, end = s.pay_period(today)
+    generate_payroll(pay, start, end)
+    # Hali to'lanmagan oyliklar (kelajakdagi davrlar hisobga olinmaydi)
+    payroll_left = sum((max(e.balance, Decimal("0")) for e in PayrollEntry.objects.filter(pay_date__lte=today)),
+                       Decimal("0"))
+
+    # Oxirgi 6 oy: kirim / chiqim
+    six = _month_start(first, 5)
+    def by_month(qs):
+        return {r["m"].strftime("%Y-%m"): r["s"] for r in
+                qs.annotate(m=TruncMonth("date")).values("m").annotate(s=Sum("amount"))}
+    rin = by_month(Payment.objects.filter(date__gte=six, date__lt=nxt))
+    rout = by_month(Expense.objects.filter(date__gte=six, date__lt=nxt))
+    months = [_month_start(first, i).strftime("%Y-%m") for i in range(5, -1, -1)]
+
+    open_invoices = (
+        Invoice.objects.filter(status__in=[Invoice.Status.SENT, Invoice.Status.PARTIAL])
+        .select_related("client", "project").prefetch_related("payments").order_by(F("due_date").asc(nulls_last=True))
+    )
+    expected = [
+        {"id": i.id, "number": i.number, "client": i.client.name, "project": i.project.name if i.project else "",
+         "due_date": i.due_date, "balance": i.balance, "overdue": i.is_overdue}
+        for i in open_invoices[:8]
+    ]
+
+    return Response({
+        "month": first.strftime("%Y-%m"),
+        "revenue": revenue,
+        "salaries": salaries,
+        "other_expenses": other,
+        "profit": profit,
+        "margin": round(profit / revenue * 100) if revenue else None,
+        "receivables": _receivables(),
+        "payroll_left": payroll_left,
+        "payroll_pay_date": pay,
+        "cash_flow": [{"month": m, "revenue": rin.get(m, Decimal("0")), "expenses": rout.get(m, Decimal("0"))}
+                      for m in months],
+        "expense_breakdown": [
+            {"category": r["category"], "label": Expense.Category(r["category"]).label, "amount": r["amount"]}
+            for r in expenses.values("category").annotate(amount=Sum("amount")).order_by("-amount")
+        ],
+        "revenue_by_project": list(
+            payments.values(name=Coalesce(F("invoice__project__name"), F("invoice__client__name")))
+            .annotate(amount=Sum("amount")).order_by("-amount")[:8]
+        ),
+        "expected_payments": expected,
+        "recent": _recent_transactions(first, nxt),
+    })
+
+
+def _recent_transactions(first, nxt):
+    rows = [
+        {"kind": "in", "date": p.date, "amount": p.amount, "title": p.invoice.client.name,
+         "sub": f"{p.get_method_display()} · {p.invoice.number}"}
+        for p in Payment.objects.filter(date__gte=first, date__lt=nxt).select_related("invoice__client")[:10]
+    ] + [
+        {"kind": "out", "date": e.date, "amount": e.amount, "title": e.get_category_display(),
+         "sub": e.description or (str(e.employee) if e.employee else "")}
+        for e in Expense.objects.filter(date__gte=first, date__lt=nxt).select_related("employee")[:10]
+    ]
+    return sorted(rows, key=lambda r: r["date"], reverse=True)[:10]
 
 
 MONTHS_UZ = ["yanvar", "fevral", "mart", "aprel", "may", "iyun", "iyul", "avgust", "sentabr", "oktabr",
@@ -137,13 +238,10 @@ def _alerts(user, today):
         if 0 < (nxt - today).days <= 3:
             alerts.append({"tone": "info", "icon": "calendar", "link": "/payroll", "action": "Vedomost",
                            "text": f"Oylik kuni yaqinlashmoqda: {nxt.day}-{MONTHS_UZ[nxt.month - 1]}"})
-    overdue = Task.objects.exclude(status=Task.Status.DONE).filter(due_date__lt=today)
-    if not (user.is_admin or user.role == "manager"):
-        overdue = overdue.filter(assignee=user)
-    n = overdue.count()
+    n = Task.objects.filter(assignee=user, due_date__lt=today).exclude(status=Task.Status.DONE).count()
     if n:
         alerts.append({"tone": "bad", "icon": "alarm", "link": "/tasks?overdue=1", "action": "Ko'rish",
-                       "text": f"{n} ta vazifaning muddati o'tib ketgan"})
+                       "text": f"Sizning {n} ta vazifangizning muddati o'tib ketgan"})
     return alerts
 
 

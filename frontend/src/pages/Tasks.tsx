@@ -24,7 +24,8 @@ export function TaskBoard({ projectId }: { projectId?: number }) {
   const { user } = useAuth()
   const [params, setParams] = useSearchParams()
   const [tasks, setTasks] = useState<Row[]>([])
-  const [assignee, setAssignee] = useState(projectId ? '' : params.get('assignee') ?? '')
+  // Vazifalar sahifasi sukut bo'yicha foydalanuvchining o'z vazifalarini ko'rsatadi
+  const [assignee, setAssignee] = useState(projectId ? '' : params.get('assignee') ?? (user ? String(user.id) : ''))
   const [project, setProject] = useState('')
   const [editing, setEditing] = useState<Row | null>(
     !projectId && params.get('new') ? { assignee: user?.id } : null,

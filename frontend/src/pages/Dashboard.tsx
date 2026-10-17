@@ -1,39 +1,48 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, errorText, type Row } from '../api'
 import { useAuth } from '../auth'
-import RevenueChart from '../components/RevenueChart'
-import { Badge, PageHead, Stat } from '../components/ui'
-import { L, fmtDate, fmtDateTime, longDateUz, money } from '../labels'
+import { RecordForm } from '../components/CrudPage'
+import { Badge, PageHead } from '../components/ui'
+import { L, longDateUz, money, relDay } from '../labels'
+import { taskFields } from './Tasks'
+
+const MONTHS_SHORT = ['YAN', 'FEV', 'MAR', 'APR', 'MAY', 'IYN', 'IYL', 'AVG', 'SEN', 'OKT', 'NOY', 'DEK']
+const ALERT_ICON: Record<string, string> = { clock: '⏰', calendar: '📅', alarm: '⚠️' }
 
 export default function Dashboard() {
   const { user } = useAuth()
   const [d, setD] = useState<Row | null>(null)
   const [error, setError] = useState('')
+  const [creating, setCreating] = useState(false)
 
-  useEffect(() => {
+  const load = useCallback(() => {
     api.get('/reports/dashboard/').then((r) => setD(r.data)).catch((e) => setError(errorText(e)))
   }, [])
+  useEffect(() => { load() }, [load])
 
-  if (error) return <div className="alert">{error}</div>
-  if (!d) return <div className="muted">Yuklanmoqda…</div>
-  const f = d.finance
+  const complete = async (id: number) => {
+    setD((prev) => prev && { ...prev, my_tasks: prev.my_tasks.filter((t: Row) => t.id !== id) })
+    try { await api.patch(`/tasks/${id}/`, { status: 'done' }); load() } catch (e) { setError(errorText(e)); load() }
+  }
 
-  const stages = Object.keys(L.leadStage) as (keyof typeof L.leadStage)[]
-  const leadMax = Math.max(1, ...stages.map((s) => d.leads_by_stage[s] ?? 0))
+  if (error && !d) return <div className="alert">{error}</div>
+  if (!d) return <div className="muted on-bg">Yuklanmoqda…</div>
+  const t = d.today_tasks
+  const att = d.attendance
 
   return (
     <>
       <PageHead title={`Salom, ${user?.full_name}`}>
-        <Link to="/tasks?new=1" className="btn btn-primary">+ Vazifa</Link>
+        <button className="btn btn-primary" onClick={() => setCreating(true)}>+ Vazifa</button>
       </PageHead>
       <p className="page-sub">{longDateUz()}</p>
 
-      {d.alerts?.length > 0 && (
+      {d.alerts.length > 0 && (
         <div className="alerts">
           {d.alerts.map((a: Row, i: number) => (
             <Link key={i} to={a.link} className={`alert-bar alert-${a.tone}`}>
-              <span className="alert-icon" aria-hidden>{({ clock: '⏰', calendar: '📅', alarm: '⚠️' } as Record<string, string>)[a.icon] ?? '•'}</span>
+              <span className="alert-icon" aria-hidden>{ALERT_ICON[a.icon] ?? '•'}</span>
               <span className="alert-text">{a.text}</span>
               <span className="alert-action">{a.action} →</span>
             </Link>
@@ -41,95 +50,129 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="stats">
-        <Stat label="Faol mijozlar" value={d.clients_active} />
-        <Stat label="Faol loyihalar" value={d.projects_active} />
-        <Stat label="Ochiq vazifalar" value={d.tasks_open} />
-        <Stat label="Muddati o'tgan vazifalar" value={d.tasks_overdue} tone={d.tasks_overdue ? 'bad' : undefined} />
+      <div className="stats dash-stats">
+        <Link to="/projects" className="stat stat-link">
+          <div className="stat-label">Faol loyihalar</div>
+          <div className="stat-value big">{d.projects.active}</div>
+          <div className="stat-hint">{d.projects.deadline_soon ? `${d.projects.deadline_soon} tasida muddat yaqinlashmoqda` : 'Muddati yaqin loyiha yo\'q'}</div>
+        </Link>
+        <Link to="/tasks" className="stat stat-link">
+          <div className="stat-label">Bugungi vazifalarim</div>
+          <div className="stat-value big">{t.total}</div>
+          <div className="stat-hint">
+            {t.done} tasi bajarildi{t.overdue ? <> · <span className="text-bad">{t.overdue} ta kechikkan</span></> : null}
+          </div>
+        </Link>
+        {d.leads.visible && (
+          <Link to="/leads" className="stat stat-link">
+            <div className="stat-label">Yangi so'rovlar</div>
+            <div className="stat-value big">{d.leads.new}</div>
+            <div className="stat-hint">{d.leads.follow_up ? `${d.leads.follow_up} tasiga qayta aloqa kerak` : 'Qayta aloqa kerak emas'}</div>
+          </Link>
+        )}
+        {att && (
+          <Link to="/attendance" className="stat stat-link">
+            <div className="stat-label">Bugungi davomatim</div>
+            <AttendanceValue att={att} />
+          </Link>
+        )}
       </div>
 
-      {f && (
-        <>
-          <div className="stats">
-            <Stat label="Shu oy tushum" value={money(f.revenue_month)} />
-            <Stat label="Shu oy xarajat" value={money(f.expenses_month)} />
-            <Stat label="Shu oy foyda" value={money(f.profit_month)} tone={f.profit_month < 0 ? 'bad' : 'good'} />
-            <Stat label="Debitor qarzdorlik" value={money(f.receivables)}
-              hint={f.overdue_invoices ? <Link to="/invoices">{f.overdue_invoices} ta hisob-faktura muddati o'tgan</Link> : undefined}
-              tone={f.overdue_invoices ? 'warn' : undefined} />
+      <div className="dash-grid">
+        <section className="card">
+          <div className="card-head">
+            <h3>Yaqin vazifalarim</h3>
+            <Link to="/tasks">Barchasi</Link>
           </div>
-          <section className="card">
-            <h3>Tushum va xarajat — so'nggi 6 oy</h3>
-            <RevenueChart data={f.by_month} />
-          </section>
-        </>
+          {d.my_tasks.length === 0 ? <p className="muted">Ochiq vazifangiz yo'q 🎉</p> : (
+            <ul className="task-list">
+              {d.my_tasks.map((x: Row) => {
+                const rd = relDay(x.due_date)
+                return (
+                  <li key={x.id}>
+                    <button className="check-btn" title="Bajarildi deb belgilash" onClick={() => complete(x.id)} aria-label="Bajarildi" />
+                    <Link to={`/tasks?open=${x.id}`} className="task-main">
+                      <div className="task-title">{x.title}</div>
+                      <div className="muted small">{x.project__name}</div>
+                    </Link>
+                    <span className={`small task-due ${rd.tone}`}>{rd.text}</span>
+                    <Badge value={x.status} label={L.taskStatus[x.status as keyof typeof L.taskStatus]} />
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </section>
+
+        <section className="card">
+          <div className="card-head">
+            <h3>Yaqin nashrlar</h3>
+            <Link to="/content">Kalendar</Link>
+          </div>
+          {d.upcoming_posts.length === 0 ? <p className="muted">Yaqin 7 kunda nashr yo'q</p> : (
+            <ul className="post-list">
+              {d.upcoming_posts.map((p: Row) => {
+                const dt = new Date(p.publish_at)
+                return (
+                  <li key={p.id}>
+                    <div className="date-tile"><b>{dt.getDate()}</b><span>{MONTHS_SHORT[dt.getMonth()]}</span></div>
+                    <div className="post-main">
+                      <div className="task-title">{p.title}</div>
+                      <div className="muted small">{p.project__name} · {L.postPlatform[p.platform as keyof typeof L.postPlatform]} · {dt.toTimeString().slice(0, 5)}</div>
+                    </div>
+                    <div className="post-badges">
+                      <span className="type-chip">{L.postType[p.content_type as keyof typeof L.postType]}</span>
+                      <Badge value={p.status} label={L.postStatus[p.status as keyof typeof L.postStatus]} />
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </section>
+      </div>
+
+      {d.project_progress.length > 0 && (
+        <section className="card">
+          <div className="card-head">
+            <h3>Loyihalarim bajarilishi</h3>
+            <Link to="/projects">Barchasi</Link>
+          </div>
+          <div className="progress-list">
+            {d.project_progress.map((p: Row) => {
+              const pct = p.total ? Math.round((p.done / p.total) * 100) : 0
+              return (
+                <Link key={p.id} to={`/projects/${p.id}`} className="progress-row">
+                  <span className="progress-name">{p.name}</span>
+                  <span className="progress-track"><span style={{ width: `${pct}%` }} /></span>
+                  <span className="progress-pct">{pct}%</span>
+                </Link>
+              )
+            })}
+          </div>
+        </section>
       )}
 
-      <div className="grid-2">
-        <section className="card">
-          <h3>Mening vazifalarim</h3>
-          {d.my_tasks.length === 0 ? <p className="muted">Ochiq vazifalar yo'q</p> : (
-            <ul className="list">
-              {d.my_tasks.map((t: Row) => (
-                <li key={t.id}>
-                  <div>
-                    <Link to={`/tasks?open=${t.id}`}>{t.title}</Link>
-                    <div className="muted small">{t.project__name}</div>
-                  </div>
-                  <div className="list-meta">
-                    <Badge value={t.priority} label={L.priority[t.priority as keyof typeof L.priority]} />
-                    <span className="small">{fmtDate(t.due_date)}</span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+      {creating && (
+        <RecordForm title="Yangi vazifa" endpoint="/tasks/" fields={taskFields} initial={{ assignee: user?.id }}
+          onClose={() => setCreating(false)} onSaved={() => { setCreating(false); load() }} />
+      )}
+    </>
+  )
+}
 
-        <section className="card">
-          <h3>Yaqin 7 kunlik kontent</h3>
-          {d.upcoming_posts.length === 0 ? <p className="muted">Rejalashtirilgan kontent yo'q</p> : (
-            <ul className="list">
-              {d.upcoming_posts.map((p: Row) => (
-                <li key={p.id}>
-                  <div>
-                    <Link to="/content">{p.title}</Link>
-                    <div className="muted small">{p.project__name} · {L.postPlatform[p.platform as keyof typeof L.postPlatform]}</div>
-                  </div>
-                  <div className="list-meta">
-                    <Badge value={p.status} label={L.postStatus[p.status as keyof typeof L.postStatus]} />
-                    <span className="small">{fmtDateTime(p.publish_at)}</span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        <section className="card">
-          <h3>Lidlar voronkasi</h3>
-          <div className="funnel">
-            {stages.map((s) => (
-              <div key={s} className="funnel-row">
-                <span className="funnel-label">{L.leadStage[s]}</span>
-                <div className="funnel-track">
-                  <div className="funnel-bar" style={{ width: `${((d.leads_by_stage[s] ?? 0) / leadMax) * 100}%` }} />
-                </div>
-                <span className="funnel-n">{d.leads_by_stage[s] ?? 0}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="card">
-          <h3>Vazifalar holati</h3>
-          <div className="stats stats-mini">
-            {(Object.keys(L.taskStatus) as (keyof typeof L.taskStatus)[]).map((s) => (
-              <Stat key={s} label={L.taskStatus[s]} value={d.tasks_by_status[s] ?? 0} />
-            ))}
-          </div>
-          <Link to="/tasks" className="btn">Kanban doskasini ochish →</Link>
-        </section>
+function AttendanceValue({ att }: { att: Row }) {
+  if (!att.workday && !att.status) return <><div className="stat-value">Dam olish kuni</div><div className="stat-hint">Bugun ish kuni emas</div></>
+  if (!att.status) return <><div className="stat-value text-warn">Belgilanmagan</div><div className="stat-hint">Ish {String(att.work_start).slice(0, 5)} da boshlanadi</div></>
+  const fine = Number(att.fine)
+  return (
+    <>
+      <div className={`stat-value ${att.status === 'absent' || att.late ? 'text-bad' : att.status === 'present' ? 'text-good' : ''}`}>
+        {att.status === 'present' ? (att.late ? 'Kech keldingiz' : "O'z vaqtida") : att.status_display}
+      </div>
+      <div className="stat-hint">
+        {att.check_in ? `Keldi ${String(att.check_in).slice(0, 5)}` : ''}{att.check_out ? ` · ketdi ${String(att.check_out).slice(0, 5)}` : ''}
+        {fine ? <span className="text-bad">{att.check_in ? ' · ' : ''}jarima {money(fine)}</span> : null}
       </div>
     </>
   )

@@ -66,6 +66,8 @@ class Lead(models.Model):
         on_delete=models.SET_NULL, related_name="leads",
     )
     notes = models.TextField("Izoh", blank=True)
+    next_action = models.CharField("Keyingi qadam", max_length=200, blank=True)
+    next_action_date = models.DateField("Keyingi qadam sanasi", null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
