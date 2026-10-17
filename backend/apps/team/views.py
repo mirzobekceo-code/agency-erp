@@ -6,9 +6,9 @@ from django.db import transaction
 from django.db.models import Q, Sum
 from django.utils import timezone
 from rest_framework import generics, status, viewsets
-from rest_framework.decorators import action, api_view
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.exceptions import PermissionDenied, ValidationError
-from rest_framework.permissions import SAFE_METHODS, BasePermission
+from rest_framework.permissions import SAFE_METHODS, AllowAny, BasePermission
 from rest_framework.response import Response
 
 from apps.accounts.models import User
@@ -299,3 +299,76 @@ class NoteViewSet(viewsets.ModelViewSet):
             ser.save(note=note, author=request.user)
             return Response(ser.data, status=status.HTTP_201_CREATED)
         return Response(NoteMessageSerializer(note.messages.select_related("author"), many=True).data)
+
+
+# ---------- Telegram ----------
+
+class AdminOnly(BasePermission):
+    def has_permission(self, request, view):
+        return has_role(request.user, "admin")
+
+
+@api_view(["POST"])
+@permission_classes([AdminOnly])
+def telegram_test(request):
+    from . import telegram
+
+    ok, res = telegram.send_message(
+        "✅ <b>Agentlik ERP</b> ulandi. Vazifalar bo'yicha bildirishnomalar shu yerga keladi.", sync=True)
+    if not ok:
+        raise ValidationError({"detail": f"Yuborilmadi: {res}"})
+    return Response({"detail": "Sinov xabari yuborildi"})
+
+
+@api_view(["GET"])
+@permission_classes([AdminOnly])
+def telegram_discover(request):
+    """Bot ko'rgan so'nggi xabarlardan guruh va topic'larni topadi (ID'larni qo'lda qidirmaslik uchun)."""
+    from . import telegram
+
+    ok, res = telegram.call("getUpdates", {"limit": 100, "allowed_updates": ["message"]})
+    if not ok:
+        raise ValidationError({"detail": f"Telegram javob bermadi: {res}"})
+    found = {}
+    for upd in res:
+        msg = upd.get("message") or upd.get("channel_post") or {}
+        chat = msg.get("chat") or {}
+        if chat.get("type") not in ("group", "supergroup"):
+            continue
+        thread = msg.get("message_thread_id") if msg.get("is_topic_message") else None
+        topic = (msg.get("reply_to_message") or {}).get("forum_topic_created", {}).get("name") \
+            or (msg.get("forum_topic_created") or {}).get("name")
+        key = (chat["id"], thread)
+        item = found.setdefault(key, {"chat_id": str(chat["id"]), "chat_title": chat.get("title", ""),
+                                      "thread_id": thread, "topic_name": topic or "", "last_text": ""})
+        if topic and not item["topic_name"]:
+            item["topic_name"] = topic
+        item["last_text"] = (msg.get("text") or "")[:60]
+    return Response(list(found.values()))
+
+
+@api_view(["GET", "POST"])
+@permission_classes([AllowAny])
+def cron_daily(request):
+    """Kunlik xulosa. Tashqi cron (masalan cron-job.org) har kuni ertalab chaqiradi: ?key=CRON_SECRET."""
+    import os
+
+    from . import telegram
+
+    secret = os.getenv("CRON_SECRET", "")
+    if not secret or request.query_params.get("key") != secret:
+        raise PermissionDenied("Kalit noto'g'ri")
+    s = AgencySettings.get()
+    today = timezone.localdate()
+    if not s.tg_daily_digest:
+        return Response({"detail": "Kunlik xulosa o'chirilgan"})
+    if s.last_digest_date == today and request.query_params.get("force") != "1":
+        return Response({"detail": "Bugun allaqachon yuborilgan"})
+    text = telegram.daily_digest(today)
+    if text:
+        ok, res = telegram.send_message(text, sync=True)
+        if not ok:
+            raise ValidationError({"detail": res})
+    s.last_digest_date = today
+    s.save(update_fields=["last_digest_date"])
+    return Response({"detail": "Yuborildi" if text else "Xabar uchun vazifa yo'q"})

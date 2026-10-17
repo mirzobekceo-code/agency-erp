@@ -38,7 +38,7 @@ export default function SettingsPage() {
   const save = async (e: FormEvent) => {
     e.preventDefault()
     try {
-      const r = await api.patch('/settings/', { ...v, attendance_manager: v.attendance_manager || null })
+      const r = await api.patch('/settings/', { ...v, attendance_manager: v.attendance_manager || null, telegram_tasks_thread_id: v.telegram_tasks_thread_id || null })
       setV(normalize(r.data))
       setMsg('Saqlandi'); setError('')
     } catch (err) { setError(errorText(err)) }
@@ -107,6 +107,105 @@ export default function SettingsPage() {
           </div>
         </section>
       </div>
+
+      <TelegramSection v={v} set={set} onSaved={(d) => setV(normalize(d))} />
     </form>
+  )
+}
+
+const TG_FLAGS: [string, string][] = [
+  ['tg_task_created', 'Yangi vazifa qo\'yilganda'],
+  ['tg_task_assigned', 'Vazifa boshqa xodimga biriktirilganda'],
+  ['tg_task_status', 'Holat o\'zgarganda (tekshiruvga, bajarildi)'],
+  ['tg_task_comment', 'Vazifaga izoh yozilganda'],
+  ['tg_daily_digest', 'Har kuni ertalab xulosa (bugungi va kechikkan vazifalar)'],
+]
+
+function TelegramSection({ v, set, onSaved }: { v: Row; set: (k: string, val: unknown) => void; onSaved: (d: Row) => void }) {
+  const [token, setToken] = useState('')
+  const [found, setFound] = useState<Row[] | null>(null)
+  const [msg, setMsg] = useState('')
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState('')
+
+  const run = async (name: string, fn: () => Promise<void>) => {
+    setBusy(name); setMsg(''); setErr('')
+    try { await fn() } catch (e) { setErr(errorText(e)) } finally { setBusy('') }
+  }
+  const saveTg = () => run('save', async () => {
+    const payload: Row = { telegram_chat_id: v.telegram_chat_id, telegram_tasks_thread_id: v.telegram_tasks_thread_id || null,
+      telegram_chat_title: v.telegram_chat_title }
+    for (const [k] of TG_FLAGS) payload[k] = v[k]
+    if (token) payload.telegram_bot_token = token.trim()
+    const r = await api.patch('/settings/', payload)
+    onSaved(r.data); setToken(''); setMsg('Telegram sozlamalari saqlandi')
+  })
+  const discover = () => run('discover', async () => {
+    if (token) { const r = await api.patch('/settings/', { telegram_bot_token: token.trim() }); onSaved(r.data); setToken('') }
+    const r = await api.get('/telegram/discover/')
+    setFound(r.data)
+  })
+  const pick = (f: Row) => {
+    set('telegram_chat_id', f.chat_id); set('telegram_tasks_thread_id', f.thread_id ?? ''); set('telegram_chat_title', f.chat_title)
+    setFound(null); setMsg(`Tanlandi: ${f.chat_title}${f.topic_name ? ' → ' + f.topic_name : ''}. Endi "Saqlash" ni bosing.`)
+  }
+  const test = () => run('test', async () => { const r = await api.post('/telegram/test/'); setMsg(r.data.detail) })
+
+  return (
+    <section className="card tg-card">
+      <div className="card-head">
+        <h3>Telegram bildirishnomalari</h3>
+        <span className={`badge ${v.telegram_configured && v.telegram_chat_id ? 'badge-good' : 'badge-muted'}`}>
+          {v.telegram_configured && v.telegram_chat_id ? `Ulangan: ${v.telegram_chat_title || v.telegram_chat_id}` : 'Ulanmagan'}
+        </span>
+      </div>
+      <ol className="tg-steps">
+        <li>Telegram'da <b>@BotFather</b> ga <code>/newbot</code> yozib bot yarating va bergan <b>tokenni</b> pastga qo'ying.</li>
+        <li>Botni <b>"Menejment"</b> guruhiga qo'shing va <b>admin</b> qiling (xabar yozish huquqi bilan).</li>
+        <li><b>"Vazifalar"</b> topic'iga kiring va <code>/start</code> deb yozing.</li>
+        <li><b>"Guruhni aniqlash"</b> ni bosing → "Vazifalar" qatorida <b>Tanlash</b> → <b>Saqlash</b> → <b>Sinov xabari</b>.</li>
+      </ol>
+      <div className="form-grid">
+        <label className="field full"><span>Bot tokeni</span>
+          <input className="input" type="password" autoComplete="off" value={token} onChange={(e) => setToken(e.target.value)}
+            placeholder={v.telegram_configured ? '•••••••• saqlangan (o\'zgartirish uchun yangisini yozing)' : '123456789:AA...'} />
+        </label>
+        <label className="field"><span>Guruh ID</span><input className="input" value={v.telegram_chat_id ?? ''} onChange={(e) => set('telegram_chat_id', e.target.value)} placeholder="-100…" /></label>
+        <label className="field"><span>Topic ID ("Vazifalar")</span><input className="input" type="number" value={v.telegram_tasks_thread_id ?? ''} onChange={(e) => set('telegram_tasks_thread_id', e.target.value)} /></label>
+      </div>
+      <div className="tg-actions">
+        <button type="button" className="btn" onClick={discover} disabled={!!busy}>{busy === 'discover' ? 'Qidirilmoqda…' : '🔍 Guruhni aniqlash'}</button>
+        <button type="button" className="btn btn-primary" onClick={saveTg} disabled={!!busy}>Saqlash</button>
+        <button type="button" className="btn" onClick={test} disabled={!!busy || !v.telegram_chat_id}>{busy === 'test' ? 'Yuborilmoqda…' : '📨 Sinov xabari'}</button>
+      </div>
+      {found && (
+        <div className="tg-found">
+          {found.length === 0 ? (
+            <p className="muted">Hech narsa topilmadi. Bot guruhga qo'shilganini tekshiring va "Vazifalar" topic'iga <code>/start</code> yozib, qayta bosing.</p>
+          ) : found.map((f) => (
+            <div key={`${f.chat_id}-${f.thread_id}`} className="tg-row">
+              <div><b>{f.chat_title}</b> → {f.topic_name || (f.thread_id ? `topic #${f.thread_id}` : 'Umumiy (General)')}
+                <div className="muted small">ID {f.chat_id}{f.thread_id ? ` · topic ${f.thread_id}` : ''}{f.last_text ? ` · "${f.last_text}"` : ''}</div>
+              </div>
+              <button type="button" className="btn" onClick={() => pick(f)}>Tanlash</button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="tg-flags">
+        {TG_FLAGS.map(([k, l]) => (
+          <label key={k} className="check"><input type="checkbox" checked={!!v[k]} onChange={(e) => set(k, e.target.checked)} /> {l}</label>
+        ))}
+      </div>
+      {v.cron_url && (
+        <p className="muted small">
+          Kunlik xulosa har kuni ertalab yuborilishi uchun <a href="https://cron-job.org" target="_blank" rel="noreferrer">cron-job.org</a> da
+          bepul vazifa yarating (masalan, har kuni 09:00, Toshkent vaqti) va shu manzilni kiriting:
+          <code className="tg-cron">{v.cron_url}</code>
+        </p>
+      )}
+      {msg && <div className="saved">✓ {msg}</div>}
+      {err && <div className="alert">{err}</div>}
+    </section>
   )
 }

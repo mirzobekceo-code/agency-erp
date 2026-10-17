@@ -16,6 +16,9 @@ services:
         value: "0"
       - key: SECRET_KEY
         generateValue: true
+      # Kunlik Telegram xulosasi uchun tashqi cron kaliti
+      - key: CRON_SECRET
+        generateValue: true
       - key: DATABASE_URL
         sync: false
       - key: ADMIN_USERNAME

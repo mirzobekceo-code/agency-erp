@@ -4,6 +4,7 @@ from rest_framework import viewsets
 from rest_framework.exceptions import PermissionDenied
 
 from apps.accounts.permissions import ManagerOrReadOnly, has_role
+from apps.team import telegram
 
 from .models import Project, Task, TaskComment, TimeEntry
 from .serializers import ProjectSerializer, TaskCommentSerializer, TaskSerializer, TimeEntrySerializer
@@ -45,7 +46,13 @@ class TaskViewSet(viewsets.ModelViewSet):
         )
 
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        task = serializer.save(created_by=self.request.user)
+        telegram.task_created(task, self.request.user)
+
+    def perform_update(self, serializer):
+        old_status, old_assignee = serializer.instance.status, serializer.instance.assignee_id
+        task = serializer.save()
+        telegram.task_updated(task, self.request.user, old_status, old_assignee)
 
     def perform_destroy(self, instance):
         if not (has_role(self.request.user, "admin", "manager") or instance.created_by_id == self.request.user.pk):
@@ -59,7 +66,8 @@ class TaskCommentViewSet(viewsets.ModelViewSet):
     filterset_fields = ["task"]
 
     def perform_create(self, serializer):
-        serializer.save(author=self.request.user)
+        comment = serializer.save(author=self.request.user)
+        telegram.task_commented(comment)
 
     def perform_update(self, serializer):
         if serializer.instance.author_id != self.request.user.pk:

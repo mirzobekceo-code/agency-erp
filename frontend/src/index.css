@@ -540,3 +540,14 @@ a.progress-row:hover .progress-name { color: var(--accent); }
 }
 .main .stage-tile .muted { color: var(--text-2); }
 .main .kanban-card .muted, .main .note-item .muted, .main .report-doc .muted { color: var(--muted); }
+.tg-card { margin-top: 16px; }
+.tg-steps { margin: 4px 0 14px; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; color: var(--text-2); }
+.tg-steps code, .tg-cron { background: var(--surface-2); padding: 1px 6px; border-radius: 5px; font-size: 12.5px; }
+.tg-cron { display: block; margin-top: 6px; word-break: break-all; padding: 6px 8px; user-select: all; }
+.tg-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0; }
+.tg-card .btn:not(.btn-primary) { background: var(--surface); color: var(--text); border-color: var(--border); }
+.tg-found { border: 1px solid var(--border); border-radius: 10px; padding: 6px 12px; margin-bottom: 12px; }
+.tg-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--grid); }
+.tg-row:last-child { border-bottom: 0; }
+.tg-flags { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.main .tg-card label.check { color: var(--text-2); }

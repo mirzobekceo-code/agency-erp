@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { api, type Paginated, type Row } from '../api'
 import { useAuth } from '../auth'
@@ -111,7 +111,9 @@ export default function Layout() {
       {open && <div className="sidebar-backdrop" onClick={() => setOpen(false)} />}
       <main className="main">
         <button className="menu-btn" onClick={() => setOpen(true)} aria-label="Menyu">☰</button>
-        <Outlet />
+        <Suspense fallback={<div className="muted on-bg">Yuklanmoqda…</div>}>
+          <Outlet />
+        </Suspense>
       </main>
     </div>
   )

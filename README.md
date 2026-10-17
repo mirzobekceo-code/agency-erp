@@ -83,6 +83,18 @@ Jamoa faol ishlata boshlaganda Render Starter ($7/oy) ga o'tish tavsiya etiladi.
 
 `build.sh` ni ishga tushiring, so'ng `cd backend && gunicorn config.wsgi`. Muhit o'zgaruvchilari: `DEBUG=0`, `SECRET_KEY`, `ALLOWED_HOSTS`, `DATABASE_URL`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`. Django frontend'ni (`frontend/dist`) o'zi beradi.
 
+## Telegram bildirishnomalari
+
+Vazifalar bo'yicha xabarlar guruhning **topic**iga (masalan, "Menejment" → "Vazifalar") yuboriladi:
+yangi vazifa, ijrochi o'zgarishi, holat o'zgarishi (tekshiruvga / bajarildi), izohlar va har kuni ertalab xulosa.
+Xodimning profilida Telegram username yozilgan bo'lsa, u xabarda @mention qilinadi.
+
+1. @BotFather → `/newbot` → tokenni oling.
+2. Botni guruhga qo'shib, admin qiling. "Vazifalar" topic'iga `/start` yozing.
+3. ERP → **Sozlamalar → Telegram**: tokenni kiriting → "Guruhni aniqlash" → "Tanlash" → "Saqlash" → "Sinov xabari".
+4. Kunlik xulosa: Sozlamalarda ko'rsatilgan havolani [cron-job.org](https://cron-job.org) da har kuni 09:00 ga qo'ying
+   (`CRON_SECRET` muhit o'zgaruvchisi Render'da avtomatik yaratiladi).
+
 ## API
 
 Barcha endpointlar `/api/` ostida, JWT (`Authorization: Bearer <token>`) bilan himoyalangan.

@@ -5,10 +5,38 @@ from .models import AgencySettings, Attendance, Note, NoteMessage, PayrollEntry
 
 class AgencySettingsSerializer(serializers.ModelSerializer):
     attendance_manager_name = serializers.StringRelatedField(source="attendance_manager", read_only=True)
+    # Token hech qachon qaytarilmaydi — faqat sozlanganmi yoki yo'qmi
+    telegram_bot_token = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    telegram_configured = serializers.SerializerMethodField()
+    cron_url = serializers.SerializerMethodField()
 
     class Meta:
         model = AgencySettings
-        exclude = ["id"]
+        exclude = ["id", "last_digest_date"]
+
+    def get_telegram_configured(self, obj):
+        from .telegram import bot_token
+
+        return bool(bot_token(obj))
+
+    def get_cron_url(self, obj):
+        """Kunlik xulosa uchun tashqi cron havolasi — faqat rahbarga ko'rinadi."""
+        import os
+
+        from .telegram import site_url
+
+        req = self.context.get("request")
+        secret = os.getenv("CRON_SECRET", "")
+        if not (req and req.user.is_admin and secret):
+            return None
+        base = site_url() or req.build_absolute_uri("/").rstrip("/")
+        return f"{base}/api/cron/daily/?key={secret}"
+
+    def update(self, instance, validated_data):
+        # Bo'sh token yuborilsa — mavjudi saqlanib qoladi (forma har safar tokenni ko'rsatmaydi)
+        if not validated_data.get("telegram_bot_token"):
+            validated_data.pop("telegram_bot_token", None)
+        return super().update(instance, validated_data)
 
 
 class AttendanceRowSerializer(serializers.Serializer):
