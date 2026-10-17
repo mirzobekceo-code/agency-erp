@@ -33,20 +33,25 @@ class Command(BaseCommand):
 
         if not User.objects.filter(is_superuser=True).exists():
             User.objects.create_superuser("admin", "", "admin12345" if settings.DEBUG else pw,
-                                          first_name="Admin", role="admin")
+                                          first_name="Admin", role="admin", job="ceo",
+                                          track_attendance=False)
+
+        def emp(username, first, last, job, salary):
+            return User.objects.create_user(username, password=pw, first_name=first, last_name=last, job=job,
+                                            role=User.JOB_ROLE[job], salary=Decimal(salary))
+
         staff = [
-            User.objects.create_user("aziz", password=pw, first_name="Aziz", last_name="Karimov",
-                                     role="manager", position="Loyiha menejeri", salary=Decimal("9000000")),
-            User.objects.create_user("malika", password=pw, first_name="Malika", last_name="Rahimova",
-                                     role="specialist", position="SMM mutaxassis", salary=Decimal("6000000")),
-            User.objects.create_user("jasur", password=pw, first_name="Jasur", last_name="Toshev",
-                                     role="specialist", position="Targetolog", salary=Decimal("7000000")),
-            User.objects.create_user("dilnoza", password=pw, first_name="Dilnoza", last_name="Usmonova",
-                                     role="specialist", position="Dizayner", salary=Decimal("6500000")),
-            User.objects.create_user("nodira", password=pw, first_name="Nodira", last_name="Aliyeva",
-                                     role="accountant", position="Buxgalter", salary=Decimal("5500000")),
+            emp("aziz", "Aziz", "Karimov", "pm", "9000000"),
+            emp("malika", "Malika", "Rahimova", "smm", "6000000"),
+            emp("sardor", "Sardor", "Rahimov", "operator", "6500000"),
+            emp("bobur", "Bobur", "Yusupov", "editor", "6500000"),
+            emp("dilnoza", "Dilnoza", "Usmonova", "designer", "6500000"),
+            emp("jasur", "Jasur", "Toshev", "target", "7000000"),
+            emp("kamola", "Kamola", "Ergasheva", "b2b", "6000000"),
+            emp("gulnora", "Gulnora", "Saidova", "hr", "5500000"),
+            emp("nodira", "Nodira", "Aliyeva", "accountant", "5500000"),
         ]
-        manager, smm, target, designer, _ = staff
+        manager, smm, operator, editor, designer, target, b2b, hr, _ = staff
 
         clients = [
             Client.objects.create(name=n, industry=i, contact_person=c, phone=p, manager=manager)
@@ -86,14 +91,27 @@ class Command(BaseCommand):
                     TimeEntry.objects.create(task=task, user=task.assignee, hours=random.choice([1, 1.5, 2, 3]),
                                              date=today - timedelta(days=random.randint(0, 20)))
 
-            for d in range(0, 14, 2):
+            ideas = ["Savol-javob", "Oldin / keyin", "Mijoz fikrlari", "Backstage", "Mahsulot sharhi",
+                     "Hafta natijalari", "Aksiya e'loni", "Jamoa bilan tanishuv"]
+            for d in range(-20, 16, 2):
+                ctype = random.choice(["post", "reels", "story", "carousel", "video"])
+                pub = timezone.now() + timedelta(days=d, hours=random.randint(0, 8))
+                if d < 0:
+                    stage = "published"
+                elif ctype in ("reels", "video"):
+                    stage = random.choice(["idea", "script", "shoot", "edit", "review", "ready"])
+                else:
+                    stage = random.choice(["idea", "script", "design", "review", "ready"])
                 ContentPost.objects.create(
-                    project=p, title=f"{p.client.name}: post #{d // 2 + 1}",
-                    platform=random.choice(["instagram", "telegram", "tiktok"]),
-                    content_type=random.choice(["post", "reels", "story", "carousel"]),
-                    publish_at=timezone.now() + timedelta(days=d - 4, hours=random.randint(0, 8)),
-                    status="published" if d < 4 else random.choice(["idea", "in_work", "review", "approved"]),
-                    assignee=smm,
+                    project=p, title=random.choice(ideas), platform=random.choice(["instagram", "telegram", "tiktok"]),
+                    content_type=ctype, publish_at=pub, status=stage, assignee=smm,
+                    operator=operator if ctype in ("reels", "video") else None,
+                    editor=editor if ctype in ("reels", "video") else None,
+                    designer=designer if ctype in ("post", "carousel", "story") else None,
+                    shoot_at=pub - timedelta(days=4) if ctype in ("reels", "video") else None,
+                    edit_deadline=(pub - timedelta(days=2)).date() if ctype in ("reels", "video", "carousel") else None,
+                    reach=random.randint(3_000, 40_000) if stage == "published" else 0,
+                    engagement=random.randint(100, 2_500) if stage == "published" else 0,
                 )
             for d in range(0, 60, 7):
                 imp = random.randint(10_000, 60_000)
@@ -125,15 +143,20 @@ class Command(BaseCommand):
 
         for name, stage, src in [("Bahor Restorani", "new", "instagram"), ("AvtoLider", "contacted", "telegram"),
                                  ("Green Market", "proposal", "website"), ("Fitnes Pro", "negotiation", "referral"),
-                                 ("Kitob Dunyosi", "lost", "call")]:
-            Lead.objects.create(name=name, stage=stage, source=src, assigned_to=manager,
+                                 ("Kitob Dunyosi", "lost", "call"),
+                                 ("Malika salon", "new", "instagram"), ("Sarvar avto", "new", "call"),
+                                 ("Oltin non", "negotiation", "instagram"), ("Kamol logistika", "proposal", "telegram"),
+                                 ("Sitora kids", "won", "referral"), ("Grand market", "lost", "website")]:
+            Lead.objects.create(name=name, stage=stage, source=src, assigned_to=b2b,
+                                next_action="Qayta qo'ng'iroq", next_action_date=today + timedelta(days=random.randint(-2, 5)),
                                 expected_value=Decimal(random.randint(5, 20) * 1_000_000), service="SMM + target")
 
         seed_team(staff, projects, today)
 
         self.stdout.write(self.style.SUCCESS(
-            "Demo ma'lumotlar yaratildi. Xodimlar: aziz, malika, jasur, dilnoza, nodira "
-            "(parol: DEMO_PASSWORD yoki lokalda demo12345; lokal admin: admin / admin12345)"
+            "Demo ma'lumotlar yaratildi. Xodimlar: aziz (PM), malika (SMM), sardor (operator), bobur (montajor), "
+            "dilnoza (dizayner), jasur (target), kamola (B2B), gulnora (HR), nodira (buxgalter). "
+            "Parol: DEMO_PASSWORD yoki lokalda demo12345; lokal admin: admin / admin12345"
         ))
 
 

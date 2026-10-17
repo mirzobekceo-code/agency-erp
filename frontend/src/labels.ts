@@ -1,6 +1,14 @@
 // Backend'dagi TextChoices bilan bir xil bo'lishi kerak.
 export const L = {
-  role: { admin: 'Administrator', manager: 'Loyiha menejeri', specialist: 'Mutaxassis', accountant: 'Buxgalter' },
+  role: {
+    admin: 'Administrator (to\'liq huquq)', manager: 'Loyiha menejeri', specialist: 'Mutaxassis',
+    accountant: 'Buxgalter', sales: 'Sotuv (B2B)', hr: 'HR',
+  },
+  job: {
+    ceo: 'CEO / Direktor', pm: 'Project manager', smm: 'SMM manager', operator: 'Video operator',
+    editor: 'Videomontajor', designer: 'Grafik dizayner', copywriter: 'Kopirayter', target: 'Targetolog',
+    b2b: 'B2B manager', hr: 'HR manager', accountant: 'Buxgalter', other: 'Boshqa',
+  },
   clientStatus: { active: 'Faol', paused: "To'xtatilgan", archived: 'Arxiv' },
   leadStage: {
     new: 'Yangi', contacted: "Bog'lanildi", proposal: 'Taklif yuborildi',
@@ -41,8 +49,10 @@ export const L = {
     post: 'Post', carousel: 'Karusel', story: 'Stories', reels: 'Reels / qisqa video', video: 'Video', article: 'Maqola',
   },
   postStatus: {
-    idea: "G'oya", in_work: 'Tayyorlanmoqda', review: "Mijoz tasdig'ida", approved: 'Tasdiqlangan', published: "E'lon qilingan",
+    idea: "G'oya", script: 'Ssenariy', shoot: 'Syomka', edit: 'Montaj', design: 'Dizayn', review: 'Tasdiq',
+    ready: 'Nashrga tayyor', published: 'Nashr qilindi',
   },
+  reportStatus: { draft: 'Qoralama', ready: 'Tayyor', sent: 'Yuborilgan' },
 } as const
 
 export const money = (v: unknown) =>
@@ -97,4 +107,5 @@ export const tone: Record<string, 'good' | 'warn' | 'bad' | 'info' | 'muted'> = 
   lost: 'bad', cancelled: 'bad', urgent: 'bad', high: 'warn',
   paused: 'muted', archived: 'muted', draft: 'muted', on_hold: 'muted', finished: 'muted', idea: 'muted',
   todo: 'muted', new: 'info', low: 'muted', medium: 'info',
+  script: 'info', shoot: 'warn', edit: 'warn', design: 'info', ready: 'good',
 }

@@ -8,7 +8,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from apps.accounts.views import MeView, UserViewSet, change_password
 from apps.clients.views import ClientViewSet, ContractViewSet, LeadViewSet
-from apps.content.views import ContentPostViewSet
+from apps.content.views import ClientReportViewSet, ContentPostViewSet
 from apps.finance.views import AdSpendViewSet, ExpenseViewSet, InvoiceViewSet, PaymentViewSet, receive_payment
 from apps.projects.views import ProjectViewSet, TaskCommentViewSet, TaskViewSet, TimeEntryViewSet
 from apps.reports import views as reports
@@ -27,7 +27,8 @@ router.register("invoices", InvoiceViewSet)
 router.register("payments", PaymentViewSet)
 router.register("expenses", ExpenseViewSet)
 router.register("ad-spends", AdSpendViewSet)
-router.register("posts", ContentPostViewSet)
+router.register("posts", ContentPostViewSet, basename="contentpost")
+router.register("client-reports", ClientReportViewSet, basename="clientreport")
 router.register("payroll", team.PayrollViewSet, basename="payroll")
 router.register("notes", team.NoteViewSet, basename="note")
 

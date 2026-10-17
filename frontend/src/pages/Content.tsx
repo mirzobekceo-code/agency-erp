@@ -1,26 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api, errorText, type Paginated, type Row } from '../api'
-import { RecordForm, type Field } from '../components/CrudPage'
 import { PageHead, useRefOptions } from '../components/ui'
 import { L } from '../labels'
+import { PostForm } from './Studio'
 
 const WEEKDAYS = ['Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh', 'Ya']
 const MONTHS = ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun', 'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr']
 
-const fields: Field[] = [
-  { name: 'title', label: 'Sarlavha', required: true, full: true },
-  { name: 'project', label: 'Loyiha', type: 'ref', ref: '/projects/', required: true },
-  { name: 'assignee', label: "Mas'ul", type: 'ref', ref: '/users/' },
-  { name: 'platform', label: 'Platforma', type: 'select', options: L.postPlatform, required: true, default: 'instagram' },
-  { name: 'content_type', label: 'Turi', type: 'select', options: L.postType, required: true, default: 'post' },
-  { name: 'publish_at', label: "E'lon vaqti", type: 'datetime' },
-  { name: 'status', label: 'Holat', type: 'select', options: L.postStatus, required: true, default: 'idea' },
-  { name: 'caption', label: 'Matn', type: 'textarea' },
-  { name: 'media_url', label: 'Media havolasi (Drive, Figma…)', type: 'url', full: true },
-  { name: 'post_url', label: "E'lon qilingan havola", type: 'url', full: true },
-  { name: 'reach', label: 'Qamrov', type: 'number', default: 0 },
-  { name: 'engagement', label: 'Faollik', type: 'number', default: 0 },
-]
 
 const pad = (n: number) => String(n).padStart(2, '0')
 const localKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
@@ -29,6 +15,7 @@ export default function ContentPage() {
   const now = new Date()
   const [ym, setYm] = useState({ y: now.getFullYear(), m: now.getMonth() })
   const [posts, setPosts] = useState<Row[]>([])
+  const [shoots, setShoots] = useState<Row[]>([])
   const [project, setProject] = useState('')
   const [editing, setEditing] = useState<Row | null>(null)
   const [error, setError] = useState('')
@@ -50,7 +37,13 @@ export default function ContentPage() {
     }
     if (project) params.project = project
     try {
-      setPosts((await api.get<Paginated<Row>>('/posts/', { params })).data.results)
+      // Nashr kunlari + shu oraliqdagi syomkalar
+      const [pub, shoot] = await Promise.all([
+        api.get<Paginated<Row>>('/posts/', { params }),
+        api.get<Paginated<Row>>('/posts/', { params: { page_size: 1000, include_published: '1', shoot_at__gte: params.publish_at__gte, shoot_at__lte: params.publish_at__lte, ...(project ? { project } : {}) } }),
+      ])
+      setPosts(pub.data.results)
+      setShoots(shoot.data.results.filter((p) => p.shoot_at))
     } catch (e) { setError(errorText(e)) }
   }, [days, project])
 
@@ -61,17 +54,22 @@ export default function ContentPage() {
     for (const p of posts) {
       if (!p.publish_at) continue
       const k = localKey(new Date(p.publish_at))
-      m.set(k, [...(m.get(k) ?? []), p])
+      m.set(k, [...(m.get(k) ?? []), { ...p, _kind: 'publish', _at: p.publish_at }])
     }
+    for (const p of shoots) {
+      const k = localKey(new Date(p.shoot_at))
+      m.set(k, [...(m.get(k) ?? []), { ...p, _kind: 'shoot', _at: p.shoot_at }])
+    }
+    for (const [k, v] of m) m.set(k, v.sort((a, b) => a._at.localeCompare(b._at)))
     return m
-  }, [posts])
+  }, [posts, shoots])
 
   const shift = (n: number) => setYm(({ y, m }) => ({ y: m + n < 0 ? y - 1 : m + n > 11 ? y + 1 : y, m: (m + n + 12) % 12 }))
   const todayKey = localKey(new Date())
 
   return (
     <>
-      <PageHead title="Kontent-reja">
+      <PageHead title="Kalendar">
         <button className="btn btn-primary" onClick={() => setEditing({})}>+ Kontent</button>
       </PageHead>
       <div className="toolbar">
@@ -96,9 +94,9 @@ export default function ContentPage() {
               onDoubleClick={() => setEditing({ publish_at: `${k}T10:00:00` })}>
               <div className="cal-num">{d.getDate()}</div>
               {items.map((p) => (
-                <button key={p.id} className={`cal-item st-${p.status}`} onClick={() => setEditing(p)}
-                  title={`${p.client_name} · ${p.platform_display} · ${p.status_display}`}>
-                  <span className="cal-time">{new Date(p.publish_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>
+                <button key={`${p._kind}-${p.id}`} className={`cal-item st-${p.status} ${p._kind === 'shoot' ? 'cal-shoot' : ''}`} onClick={() => setEditing(p)}
+                  title={`${p._kind === 'shoot' ? 'Syomka' : 'Nashr'} · ${p.project_name} · ${p.content_type_display} · ${p.status_display}`}>
+                  <span className="cal-time">{p._kind === 'shoot' ? '🎥 ' : ''}{new Date(p._at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>
                   {p.title}
                 </button>
               ))}
@@ -110,13 +108,11 @@ export default function ContentPage() {
         {(Object.keys(L.postStatus) as (keyof typeof L.postStatus)[]).map((s) => (
           <span key={s}><i className={`dot st-${s}`} />{L.postStatus[s]}</span>
         ))}
+        <span>🎥 — syomka kuni</span>
         <span className="muted small">Kunga ikki marta bosib yangi kontent qo'shish mumkin</span>
       </div>
 
-      {editing && (
-        <RecordForm title={editing.id ? 'Kontentni tahrirlash' : 'Yangi kontent'} endpoint="/posts/" fields={fields}
-          initial={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load() }} />
-      )}
+      {editing && <PostForm post={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load() }} />}
     </>
   )
 }

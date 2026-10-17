@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { api, type Paginated, type Row } from '../api'
 import { useAuth } from '../auth'
 
-interface Item { to: string; label: string; finance?: boolean }
+interface Item { to: string; label: string; finance?: boolean; payroll?: boolean }
 
 // title link berilsa, guruh sarlavhasi bosilganda o'sha sahifa ochiladi
 
@@ -13,7 +13,8 @@ const groups: { title: string; link?: string; items: Item[] }[] = [
     items: [
       { to: '/', label: 'Bosh sahifa' },
       { to: '/tasks', label: 'Vazifalar' },
-      { to: '/content', label: 'Kontent-reja' },
+      { to: '/studio', label: 'Kontent studio' },
+      { to: '/content', label: 'Kalendar' },
       { to: '/time', label: 'Ish vaqti' },
     ],
   },
@@ -21,9 +22,10 @@ const groups: { title: string; link?: string; items: Item[] }[] = [
     title: 'Mijozlar',
     items: [
       { to: '/projects', label: 'Loyihalar' },
-      { to: '/leads', label: 'CRM (lidlar)' },
+      { to: '/crm', label: 'CRM' },
       { to: '/clients', label: 'Mijozlar' },
       { to: '/contracts', label: 'Shartnomalar' },
+      { to: '/reports', label: 'Hisobot' },
     ],
   },
   {
@@ -42,7 +44,7 @@ const groups: { title: string; link?: string; items: Item[] }[] = [
       { to: '/invoices', label: 'Hisob-fakturalar', finance: true },
       { to: '/payments', label: "To'lovlar", finance: true },
       { to: '/expenses', label: 'Xarajatlar', finance: true },
-      { to: '/payroll', label: 'Oylik vedomost', finance: true },
+      { to: '/payroll', label: 'Oylik vedomost', payroll: true },
       { to: '/ad-spends', label: 'Reklama sarflari', finance: true },
       { to: '/reports/finance', label: 'Moliyaviy hisobot', finance: true },
     ],
@@ -66,7 +68,8 @@ export default function Layout() {
         <div className="brand">Agentlik ERP</div>
         <nav onClick={() => setOpen(false)}>
           {groups.map((g) => {
-            const items = g.items.filter((i) => !i.finance || user?.can_see_finance)
+            const canPayroll = can('accountant', 'hr')
+            const items = g.items.filter((i) => (i.payroll ? canPayroll : !i.finance || user?.can_see_finance))
             if (!items.length) return null
             return (
               <div key={g.title} className="nav-group">

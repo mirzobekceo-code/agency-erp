@@ -12,7 +12,7 @@ from rest_framework.permissions import SAFE_METHODS, BasePermission
 from rest_framework.response import Response
 
 from apps.accounts.models import User
-from apps.accounts.permissions import FinancePermission, has_role
+from apps.accounts.permissions import PayrollPermission, has_role
 from apps.finance.models import Expense
 
 from .models import AgencySettings, Attendance, Note, NoteMessage, PayrollEntry
@@ -47,7 +47,7 @@ class SettingsView(generics.RetrieveUpdateAPIView):
 
 def can_mark_attendance(user):
     s = AgencySettings.get()
-    return has_role(user, "admin") or (s.attendance_manager_id is not None and s.attendance_manager_id == user.pk)
+    return has_role(user, "admin", "hr") or (s.attendance_manager_id is not None and s.attendance_manager_id == user.pk)
 
 
 def tracked_users():
@@ -131,7 +131,7 @@ def attendance_month(request):
     days = [first + timedelta(days=i) for i in range((nxt - first).days)]
 
     users = tracked_users()
-    if not (can_mark_attendance(request.user) or has_role(request.user, "accountant", "manager")):
+    if not (can_mark_attendance(request.user) or has_role(request.user, "accountant", "manager", "hr")):
         users = users.filter(pk=request.user.pk)
     recs = defaultdict(dict)
     for a in Attendance.objects.filter(date__gte=first, date__lt=nxt, user__in=users):
@@ -195,7 +195,7 @@ def generate_payroll(pay_date, start, end):
 
 class PayrollViewSet(viewsets.ModelViewSet):
     serializer_class = PayrollEntrySerializer
-    permission_classes = [FinancePermission]
+    permission_classes = [PayrollPermission]
     http_method_names = ["get", "patch", "post", "head", "options"]
 
     def get_queryset(self):

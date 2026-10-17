@@ -14,7 +14,7 @@ class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [IsAdminOrReadOnly]
-    filterset_fields = ["role", "is_active"]
+    filterset_fields = ["role", "job", "is_active"]
     search_fields = ["username", "first_name", "last_name", "position", "phone"]
 
 

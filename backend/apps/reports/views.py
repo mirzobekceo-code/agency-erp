@@ -9,7 +9,7 @@ from rest_framework.decorators import api_view
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
-from apps.accounts.permissions import can_see_finance
+from apps.accounts.permissions import can_see_finance, sees_all_leads
 from apps.clients.models import Client, Lead
 from apps.content.models import ContentPost
 from apps.finance.models import AdSpend, Expense, Invoice, Payment
@@ -49,7 +49,7 @@ def _my_projects(user):
 
 
 def _visible_leads(user):
-    if user.is_admin or user.role == "manager":
+    if sees_all_leads(user):
         return Lead.objects.all()
     return Lead.objects.filter(assigned_to=user)
 
@@ -98,7 +98,7 @@ def dashboard(request):
         "leads": {
             "new": leads.filter(stage=Lead.Stage.NEW).count(),
             "follow_up": active_leads.filter(next_action_date__lte=today).count(),
-            "visible": user.is_admin or user.role == "manager" or leads.exists(),
+            "visible": sees_all_leads(user) or leads.exists(),
         },
         "attendance": attendance,
         "my_tasks": list(
@@ -223,7 +223,7 @@ def _alerts(user, today):
         if n:
             alerts.append({"tone": "warn", "icon": "clock", "link": "/attendance",
                            "action": "Belgilash", "text": f"Bugungi davomat: {n} xodim hali belgilanmagan"})
-    if user.is_admin or user.role == "accountant":
+    if user.is_admin or user.role in ("accountant", "hr"):
         pay, start, end = s.pay_period(today)
         days_ago = (today - pay).days
         if days_ago <= 7:

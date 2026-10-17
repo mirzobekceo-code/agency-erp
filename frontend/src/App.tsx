@@ -13,6 +13,9 @@ import {
   ProjectsPage, TimeEntriesPage, UsersPage,
 } from './pages/simple'
 import TasksPage from './pages/Tasks'
+import CrmPage from './pages/Crm'
+import ReportsPage from './pages/Reports'
+import StudioPage from './pages/Studio'
 import AttendancePage from './pages/Attendance'
 import NotesPage from './pages/Notes'
 import PayrollPage from './pages/Payroll'
@@ -39,6 +42,9 @@ export default function App() {
           <Route element={<Protected><Layout /></Protected>}>
             <Route index element={<Dashboard />} />
             <Route path="leads" element={<LeadsPage />} />
+            <Route path="crm" element={<CrmPage />} />
+            <Route path="studio" element={<StudioPage />} />
+            <Route path="reports" element={<ReportsPage />} />
             <Route path="clients" element={<ClientsPage />} />
             <Route path="contracts" element={<ContractsPage />} />
             <Route path="projects" element={<ProjectsPage />} />
@@ -55,7 +61,7 @@ export default function App() {
             <Route path="users" element={<UsersPage />} />
             <Route path="attendance" element={<AttendancePage />} />
             <Route path="notes" element={<NotesPage />} />
-            <Route path="payroll" element={<FinanceOnly><PayrollPage /></FinanceOnly>} />
+            <Route path="payroll" element={<PayrollPage />} />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />

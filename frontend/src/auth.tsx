@@ -5,7 +5,8 @@ export interface Me {
   id: number
   username: string
   full_name: string
-  role: 'admin' | 'manager' | 'specialist' | 'accountant'
+  role: 'admin' | 'manager' | 'specialist' | 'accountant' | 'sales' | 'hr'
+  job?: string
   role_display: string
   is_superuser: boolean
   can_see_finance: boolean

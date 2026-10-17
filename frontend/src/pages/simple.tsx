@@ -12,7 +12,7 @@ export function ClientsPage() {
   const { can } = useAuth()
   return (
     <CrudPage
-      title="Mijozlar" endpoint="/clients/" canEdit={can('manager')}
+      title="Mijozlar" endpoint="/clients/" canEdit={can('manager', 'sales')}
       filters={[{ name: 'status', label: 'Holat', options: L.clientStatus }, { name: 'manager', label: 'Menejer', ref: '/users/' }]}
       columns={[
         { key: 'name', label: 'Kompaniya' },
@@ -52,7 +52,7 @@ export function LeadsPage() {
   }
   return (
     <CrudPage
-      title="Lidlar" endpoint="/leads/" canEdit={can('manager')}
+      title="Lidlar" endpoint="/leads/" canEdit={can('manager', 'sales')}
       filters={[{ name: 'stage', label: 'Bosqich', options: L.leadStage }, { name: 'source', label: 'Manba', options: L.leadSource }]}
       columns={[
         { key: 'name', label: 'Ism / kompaniya' },
@@ -94,7 +94,7 @@ export function ContractsPage() {
   const { can } = useAuth()
   return (
     <CrudPage
-      title="Shartnomalar" endpoint="/contracts/" canEdit={can('manager')}
+      title="Shartnomalar" endpoint="/contracts/" canEdit={can('manager', 'sales')}
       filters={[{ name: 'status', label: 'Holat', options: L.contractStatus }, { name: 'client', label: 'Mijoz', ref: '/clients/' }]}
       columns={[
         { key: 'number', label: 'Raqam' },
@@ -130,7 +130,7 @@ export function ProjectsPage() {
     <>
       <CrudPage
         key={version}
-        title="Loyihalar" endpoint="/projects/" canEdit={can('manager')} canCreate={false}
+        title="Loyihalar" endpoint="/projects/" canEdit={can('manager', 'sales')} canCreate={false}
         headerExtra={can('manager') && <button className="btn btn-primary" onClick={() => setEditing({})}>+ Qo'shish</button>}
         onRowClick={(r) => nav(`/projects/${r.id}`)}
         filters={[
@@ -335,16 +335,16 @@ export function AdSpendsPage() {
 
 export function UsersPage() {
   const { can } = useAuth()
-  const admin = can()
+  const admin = can('hr')
   return (
     <CrudPage
       title="Jamoa" endpoint="/users/" canEdit={admin}
-      filters={[{ name: 'role', label: 'Rol', options: L.role }]}
+      filters={[{ name: 'job', label: 'Lavozim', options: L.job }, { name: 'role', label: 'Huquq', options: L.role }]}
       columns={[
         { key: 'full_name', label: 'F.I.Sh.' },
         { key: 'username', label: 'Login' },
-        { key: 'position', label: 'Lavozim' },
-        { key: 'role', label: 'Rol', render: (r) => r.role_display },
+        { key: 'job', label: 'Lavozim', render: (r) => r.position || r.job_display },
+        { key: 'role', label: 'Kirish huquqi', render: (r) => r.role_display },
         { key: 'phone', label: 'Telefon' },
         ...(can('accountant') ? [{ key: 'salary', label: 'Maosh', align: 'right' as const, render: (r: Row) => money(r.salary) }] : []),
         { key: 'is_active', label: 'Holat', render: (r) => <Badge value={r.is_active ? 'active' : 'archived'} label={r.is_active ? 'Faol' : 'Nofaol'} /> },
@@ -354,8 +354,9 @@ export function UsersPage() {
         { name: 'password', label: "Parol (o'zgartirish uchun)", type: 'password' },
         { name: 'first_name', label: 'Ism', required: true },
         { name: 'last_name', label: 'Familiya' },
-        { name: 'role', label: 'Rol', type: 'select', options: L.role, required: true, default: 'specialist' },
-        { name: 'position', label: 'Lavozim' },
+        { name: 'job', label: 'Lavozim', type: 'select', options: L.job, required: true, default: 'smm' },
+        { name: 'role', label: "Kirish huquqi (bo'sh qolsa — lavozimdan)", type: 'select', options: L.role },
+        { name: 'position', label: "Lavozim nomi (ixtiyoriy, masalan 'Katta dizayner')" },
         { name: 'phone', label: 'Telefon' },
         { name: 'telegram', label: 'Telegram' },
         { name: 'email', label: 'Email', type: 'email' },

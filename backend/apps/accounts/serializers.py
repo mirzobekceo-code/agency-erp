@@ -6,6 +6,7 @@ from .models import User
 class UserSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
     role_display = serializers.CharField(source="get_role_display", read_only=True)
+    job_display = serializers.CharField(source="get_job_display", read_only=True)
     password = serializers.CharField(write_only=True, required=False, min_length=8)
 
     class Meta:
@@ -13,7 +14,7 @@ class UserSerializer(serializers.ModelSerializer):
         fields = [
             "id", "username", "password", "first_name", "last_name", "full_name", "email",
             "role", "role_display", "position", "phone", "telegram", "salary", "hired_at", "is_active",
-            "work_format", "employee_type", "track_attendance",
+            "work_format", "employee_type", "track_attendance", "job", "job_display",
         ]
 
     def get_full_name(self, obj):
@@ -25,11 +26,24 @@ class UserSerializer(serializers.ModelSerializer):
         # Maoshni faqat admin, buxgalter yoki xodimning o'zi ko'radi.
         if request and not (
             request.user.is_superuser
-            or request.user.role in ("admin", "accountant")
+            or request.user.role in ("admin", "accountant", "hr")
             or request.user.pk == instance.pk
         ):
             data.pop("salary", None)
         return data
+
+    def to_internal_value(self, data):
+        # Bo'sh rol = "lavozimdan avtomatik"
+        if data.get("role") in ("", None) and "role" in data:
+            data = data.copy()
+            data.pop("role")
+        return super().to_internal_value(data)
+
+    def validate(self, attrs):
+        # Lavozim tanlanib, rol aniq berilmagan bo'lsa — rol lavozimdan olinadi
+        if "job" in attrs and "role" not in attrs:
+            attrs["role"] = User.JOB_ROLE.get(attrs["job"], "specialist")
+        return attrs
 
     def create(self, validated_data):
         password = validated_data.pop("password", None)
@@ -57,7 +71,7 @@ class MeSerializer(UserSerializer):
     class Meta(UserSerializer.Meta):
         fields = UserSerializer.Meta.fields + ["is_superuser", "can_see_finance", "can_mark_attendance"]
         read_only_fields = ["username", "role", "salary", "is_active", "is_superuser", "work_format",
-                            "employee_type", "track_attendance"]
+                            "employee_type", "track_attendance", "job"]
 
     def get_can_see_finance(self, obj):
         from .permissions import can_see_finance
