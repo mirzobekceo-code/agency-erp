@@ -43,8 +43,8 @@ class TelegramTests(APITestCase):
         self.client.force_authenticate(self.op)
         with self.captureOnCommitCallbacks(execute=True):
             self.client.patch(f"/api/tasks/{tid}/", {"status": "review"})
-        self.assertIn("Tekshiruvda", self.sent[-1][1]["text"])
-        self.assertIn("Tekshiradi: Boss", self.sent[-1][1]["text"])
+        self.assertIn("Tasdiqqa yuborildi", self.sent[-1][1]["text"])
+        self.assertIn("Tasdiqlaydi: Boss", self.sent[-1][1]["text"])
         with self.captureOnCommitCallbacks(execute=True):
             self.client.post("/api/task-comments/", {"task": tid, "text": "Tayyor, ko'rib chiqing"})
         self.assertIn("Izoh", self.sent[-1][1]["text"])

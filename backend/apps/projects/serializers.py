@@ -30,12 +30,49 @@ class TaskSerializer(serializers.ModelSerializer):
     priority_display = serializers.CharField(source="get_priority_display", read_only=True)
     project_name = serializers.StringRelatedField(source="project", read_only=True)
     assignee_name = serializers.StringRelatedField(source="assignee", read_only=True)
-    spent_hours = serializers.DecimalField(max_digits=8, decimal_places=2, read_only=True)
+    created_by_name = serializers.StringRelatedField(source="created_by", read_only=True)
+    spent_hours = serializers.DecimalField(max_digits=8, decimal_places=2, read_only=True, default=0)
+    steps_total = serializers.SerializerMethodField()
+    steps_done = serializers.SerializerMethodField()
+    can_supervise = serializers.SerializerMethodField()
+    is_assignee = serializers.SerializerMethodField()
+    # Faqat yozish uchun: tasdiqdan qaytarish sababi (izoh sifatida saqlanadi)
+    return_reason = serializers.CharField(write_only=True, required=False, allow_blank=True)
 
     class Meta:
         model = Task
         fields = "__all__"
-        read_only_fields = ["created_by"]
+        read_only_fields = ["created_by", "done_at", "returned_count"]
+
+    def get_steps_total(self, obj):
+        return len(obj.checklist or [])
+
+    def get_steps_done(self, obj):
+        return sum(1 for s in obj.checklist or [] if s.get("done"))
+
+    def _user(self):
+        req = self.context.get("request")
+        return req.user if req else None
+
+    def get_can_supervise(self, obj):
+        u = self._user()
+        return bool(u and obj.can_supervise(u))
+
+    def get_is_assignee(self, obj):
+        u = self._user()
+        return bool(u and obj.assignee_id == u.pk)
+
+    def validate_checklist(self, value):
+        if not isinstance(value, list):
+            raise serializers.ValidationError("Qadamlar ro'yxat bo'lishi kerak.")
+        clean = []
+        for item in value:
+            if isinstance(item, str):
+                item = {"text": item, "done": False}
+            text = str(item.get("text", "")).strip()[:200]
+            if text:
+                clean.append({"text": text, "done": bool(item.get("done"))})
+        return clean[:50]
 
 
 class TimeEntrySerializer(serializers.ModelSerializer):

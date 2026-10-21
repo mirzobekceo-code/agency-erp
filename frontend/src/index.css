@@ -551,3 +551,22 @@ a.progress-row:hover .progress-name { color: var(--accent); }
 .tg-row:last-child { border-bottom: 0; }
 .tg-flags { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
 .main .tg-card label.check { color: var(--text-2); }
+
+/* ---------- Vazifa berish ---------- */
+.seg-light { margin-left: auto; }
+.due-chips { margin-top: 6px; }
+.notice { cursor: pointer; margin-bottom: 12px; }
+.kanban-empty { text-align: center; padding: 14px 0; }
+.kanban-card.is-late { border-left: 3px solid var(--bad); }
+.task-col-done .kanban-card { opacity: 0.85; }
+.who i.giver { background: var(--surface-2); color: var(--text-2); }
+.who-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 110px; }
+.steps-bar { position: relative; height: 6px; background: var(--surface-2); border-radius: 999px; margin: 2px 0 4px; }
+.steps-bar span { position: absolute; inset: 0 auto 0 0; background: var(--primary); border-radius: 999px; }
+.steps-bar small { position: absolute; right: 0; top: -15px; font-size: 10.5px; color: var(--muted); }
+.task-flow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.task-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 10px 12px; background: var(--surface-2); border-radius: 10px; margin-bottom: 14px; }
+.btn-warn { background: var(--warn-bg); color: var(--warn); border-color: transparent; }
+.checklist { list-style: none; padding: 0; margin: 0 0 8px; display: flex; flex-direction: column; gap: 6px; }
+.checklist li.done label { text-decoration: line-through; color: var(--muted); }
+.modal label.check { color: var(--text); }

@@ -27,7 +27,7 @@ export const L = {
     planning: 'Rejalashtirilmoqda', active: 'Jarayonda', on_hold: "To'xtatilgan",
     completed: 'Yakunlangan', cancelled: 'Bekor qilingan',
   },
-  taskStatus: { todo: 'Bajarilishi kerak', in_progress: 'Jarayonda', review: 'Tekshiruvda', done: 'Bajarildi' },
+  taskStatus: { todo: 'Rejada', in_progress: 'Jarayonda', review: 'Tasdiqda', done: 'Tayyor' },
   priority: { low: 'Past', medium: "O'rta", high: 'Yuqori', urgent: 'Shoshilinch' },
   invoiceStatus: {
     draft: 'Qoralama', sent: 'Yuborilgan', partial: "Qisman to'langan", paid: "To'langan", cancelled: 'Bekor qilingan',

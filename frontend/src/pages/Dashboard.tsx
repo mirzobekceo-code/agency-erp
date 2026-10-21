@@ -2,10 +2,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, errorText, type Row } from '../api'
 import { useAuth } from '../auth'
-import { RecordForm } from '../components/CrudPage'
 import { Badge, PageHead } from '../components/ui'
 import { L, longDateUz, money, relDay } from '../labels'
-import { taskFields } from './Tasks'
+import { TaskForm } from './Tasks'
 
 const MONTHS_SHORT = ['YAN', 'FEV', 'MAR', 'APR', 'MAY', 'IYN', 'IYL', 'AVG', 'SEN', 'OKT', 'NOY', 'DEK']
 const ALERT_ICON: Record<string, string> = { clock: '⏰', calendar: '📅', alarm: '⚠️' }
@@ -93,7 +92,7 @@ export default function Dashboard() {
                     <button className="check-btn" title="Bajarildi deb belgilash" onClick={() => complete(x.id)} aria-label="Bajarildi" />
                     <Link to={`/tasks?open=${x.id}`} className="task-main">
                       <div className="task-title">{x.title}</div>
-                      <div className="muted small">{x.project__name}</div>
+                      <div className="muted small">{x.project__name ?? 'Umumiy'}</div>
                     </Link>
                     <span className={`small task-due ${rd.tone}`}>{rd.text}</span>
                     <Badge value={x.status} label={L.taskStatus[x.status as keyof typeof L.taskStatus]} />
@@ -154,8 +153,7 @@ export default function Dashboard() {
       )}
 
       {creating && (
-        <RecordForm title="Yangi vazifa" endpoint="/tasks/" fields={taskFields} initial={{ assignee: user?.id }}
-          onClose={() => setCreating(false)} onSaved={() => { setCreating(false); load() }} />
+        <TaskForm initial={{ assignee: user?.id }} onClose={() => setCreating(false)} onSaved={() => { setCreating(false); load() }} />
       )}
     </>
   )

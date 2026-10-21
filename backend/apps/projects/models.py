@@ -51,10 +51,10 @@ class Project(models.Model):
 
 class Task(models.Model):
     class Status(models.TextChoices):
-        TODO = "todo", "Bajarilishi kerak"
+        TODO = "todo", "Rejada"
         IN_PROGRESS = "in_progress", "Jarayonda"
-        REVIEW = "review", "Tekshiruvda"
-        DONE = "done", "Bajarildi"
+        REVIEW = "review", "Tasdiqda"
+        DONE = "done", "Tayyor"
 
     class Priority(models.TextChoices):
         LOW = "low", "Past"
@@ -62,7 +62,8 @@ class Task(models.Model):
         HIGH = "high", "Yuqori"
         URGENT = "urgent", "Shoshilinch"
 
-    project = models.ForeignKey(Project, verbose_name="Loyiha", on_delete=models.CASCADE, related_name="tasks")
+    project = models.ForeignKey(Project, verbose_name="Loyiha", null=True, blank=True, on_delete=models.CASCADE,
+                                related_name="tasks", help_text="Bo'sh — umumiy (loyihasiz) vazifa")
     title = models.CharField("Vazifa", max_length=255)
     description = models.TextField("Tavsif", blank=True)
     status = models.CharField("Holat", max_length=20, choices=Status.choices, default=Status.TODO)
@@ -76,6 +77,10 @@ class Task(models.Model):
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="created_tasks",
     )
+    # Qadamlar: [{"text": "Ssenariy yozish", "done": false}, ...]
+    checklist = models.JSONField("Qadamlar", default=list, blank=True)
+    done_at = models.DateTimeField("Bajarilgan vaqt", null=True, blank=True)
+    returned_count = models.PositiveSmallIntegerField("Qaytarilgan marta", default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -86,6 +91,19 @@ class Task(models.Model):
 
     def __str__(self):
         return self.title
+
+    def can_supervise(self, user):
+        """Vazifani tasdiqlash/qaytarish, tahrirlash va boshqaga berish huquqi:
+        vazifani bergan xodim, loyiha PM'i yoki rahbar."""
+        return bool(
+            user.is_admin
+            or (self.created_by_id and self.created_by_id == user.pk)
+            or (self.project_id and self.project.manager_id == user.pk)
+        )
+
+    def needs_approval(self, user):
+        """Ijrochi vazifani o'zi yopa oladimi: o'ziga qo'ygan bo'lsa ha, aks holda tasdiq kerak."""
+        return not self.can_supervise(user)
 
 
 class TaskComment(models.Model):

@@ -102,10 +102,14 @@ def _task_link(task):
     return f'<a href="{base}/tasks?open={task.pk}">{title}</a>' if base else f"<b>{title}</b>"
 
 
+def _proj(task):
+    return escape(task.project.name) if task.project_id else "Umumiy"
+
+
 def _task_lines(task):
     from apps.projects.models import Task
 
-    lines = [f"📁 {escape(task.project.name)}", f"👤 Ijrochi: {_who(task.assignee)}"]
+    lines = [f"📁 {_proj(task)}", f"👤 Ijrochi: {_who(task.assignee)}"]
     if task.due_date:
         lines.append(f"📅 Muddat: {task.due_date:%d.%m.%Y}")
     if task.priority in ("high", "urgent"):
@@ -123,7 +127,7 @@ def task_created(task, actor):
     send_message(text)
 
 
-def task_updated(task, actor, old_status, old_assignee_id):
+def task_updated(task, actor, old_status, old_assignee_id, returned=False, reason=""):
     from apps.projects.models import Task
 
     from .models import AgencySettings
@@ -133,12 +137,21 @@ def task_updated(task, actor, old_status, old_assignee_id):
         send_message("\n".join([f"👉 <b>Vazifa biriktirildi</b>: {_task_link(task)}", *_task_lines(task),
                                 f"✍️ {escape(str(actor))}"]))
     if s.tg_task_status and old_status != task.status:
+        if returned:
+            why = f"\n📝 {escape(reason)}" if reason else ""
+            send_message(f"↩️ <b>Qaytarildi</b>: {_task_link(task)}\n📁 {_proj(task)}"
+                         f"\n👤 {_who(task.assignee)}{why}\n✍️ {escape(str(actor))}")
+            return
         icon = {"done": "✅", "review": "👀", "in_progress": "▶️", "todo": "↩️"}.get(task.status, "🔄")
-        label = Task.Status(task.status).label
+        label = {"review": "Tasdiqqa yuborildi",
+                 "done": "Tasdiqlandi" if old_status == "review" else "Tayyor"}.get(task.status,
+                                                                                  Task.Status(task.status).label)
         extra = ""
         if task.status == "review" and task.created_by and task.created_by_id != actor.pk:
-            extra = f"\n🔎 Tekshiradi: {_who(task.created_by)}"
-        send_message(f"{icon} <b>{escape(label)}</b>: {_task_link(task)}\n📁 {escape(task.project.name)}"
+            extra = f"\n🔎 Tasdiqlaydi: {_who(task.created_by)}"
+        elif task.status == "done" and task.assignee_id and task.assignee_id != actor.pk:
+            extra = f"\n👤 {_who(task.assignee)}"
+        send_message(f"{icon} <b>{escape(label)}</b>: {_task_link(task)}\n📁 {_proj(task)}"
                      f"\n✍️ {escape(str(actor))}{extra}")
 
 
@@ -179,7 +192,7 @@ def daily_digest(today):
             out.append(f"👤 {_who(user)}")
             for t in ts[:8]:
                 late = f" — <i>{(today - t.due_date).days} kun</i>" if show_days else ""
-                out.append(f"   • {_task_link(t)} ({escape(t.project.name)}){late}")
+                out.append(f"   • {_task_link(t)} ({_proj(t)}){late}")
             if len(ts) > 8:
                 out.append(f"   … yana {len(ts) - 8} ta")
         return out
