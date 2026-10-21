@@ -358,7 +358,7 @@ export function UsersPage() {
         { name: 'role', label: "Kirish huquqi (bo'sh qolsa — lavozimdan)", type: 'select', options: L.role },
         { name: 'position', label: "Lavozim nomi (ixtiyoriy, masalan 'Katta dizayner')" },
         { name: 'phone', label: 'Telefon' },
-        { name: 'telegram', label: 'Telegram' },
+        { name: 'telegram', label: 'Telegram @username (vazifa xabarida belgilanadi)' },
         { name: 'email', label: 'Email', type: 'email' },
         { name: 'salary', label: 'Oylik maosh', type: 'money', default: 0 },
         { name: 'hired_at', label: 'Ishga kirgan sana', type: 'date' },

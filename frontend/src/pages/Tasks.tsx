@@ -28,7 +28,7 @@ export function TaskForm({ initial, onClose, onSaved }: { initial: Row; onClose:
   const projects = useRefOptions('/projects/')
   const [v, setV] = useState({
     title: initial.title ?? '', project: initial.project ?? '', assignee: initial.assignee ?? '',
-    due_date: initial.due_date ?? '', priority: initial.priority ?? 'medium', status: initial.status ?? 'todo',
+    due_date: initial.due_date ?? '', due_time: (initial.due_time ?? '').slice(0, 5), priority: initial.priority ?? 'medium', status: initial.status ?? 'todo',
     description: initial.description ?? '',
     steps: ((initial.checklist ?? []) as Row[]).map((s) => s.text).join('\n'),
   })
@@ -44,6 +44,7 @@ export function TaskForm({ initial, onClose, onSaved }: { initial: Row; onClose:
     const checklist = v.steps.split('\n').map((t) => t.trim()).filter(Boolean).map((text) => ({ text, done: !!old.get(text) }))
     const payload = {
       title: v.title, project: v.project || null, assignee: v.assignee || null, due_date: v.due_date || null,
+      due_time: v.due_date && v.due_time ? v.due_time : null,
       priority: v.priority, status: v.status, description: v.description, checklist,
     }
     try {
@@ -76,8 +77,13 @@ export function TaskForm({ initial, onClose, onSaved }: { initial: Row; onClose:
             </select>
           </label>
           <div className="field">
-            <span>Muddat</span>
-            <input className="input" type="date" value={v.due_date} onChange={(e) => set('due_date', e.target.value)} />
+            <span>Muddat (sana va vaqt)</span>
+            <div className="due-row">
+              <input className="input" type="date" value={v.due_date} onChange={(e) => set('due_date', e.target.value)} />
+              <input className="input" type="time" value={v.due_time} disabled={!v.due_date} title="Bo'sh qolsa — ish kuni oxiri"
+                onChange={(e) => set('due_time', e.target.value)} />
+            </div>
+            <small className="muted">Muddatga 2 soat qolganda ijrochiga Telegram'da eslatma boradi. Vaqt kiritilmasa — ish kuni oxiri.</small>
             <div className="chips due-chips">
               {chips.map(([l, d]) => (
                 <button type="button" key={l} className={`chip ${v.due_date === d ? 'on' : ''}`} onClick={() => set('due_date', d)}>{l}</button>
@@ -229,7 +235,7 @@ export function TaskBoard({ projectId }: { projectId?: number }) {
                     <td><div className="task-title">{t.title}</div><Badge value={t.priority} label={t.priority_display} /></td>
                     {!projectId && <td>{t.project_name ?? <span className="muted">Umumiy</span>}</td>}
                     <td className="small">{t.created_by_name ?? '—'} → <b>{t.assignee_name ?? '—'}</b></td>
-                    <td className={t.status !== 'done' ? rd.tone : 'muted'}>{t.status === 'done' ? fmtDateTime(t.done_at) : rd.text}</td>
+                    <td className={t.status !== 'done' ? rd.tone : 'muted'}>{t.status === 'done' ? fmtDateTime(t.done_at) : `${rd.text}${t.due_time ? ' ' + t.due_time.slice(0, 5) : ''}`}</td>
                     <td>{t.steps_total ? `${t.steps_done}/${t.steps_total}` : '—'}</td>
                     <td><Badge value={t.status} label={t.status_display} /></td>
                   </tr>
@@ -264,7 +270,7 @@ function TaskCard({ t, today, showProject, onDrag, onOpen }: { t: Row; today: st
       {showProject && <div className="muted small">{t.project_name ?? 'Umumiy'}</div>}
       <div className="kanban-meta">
         <Badge value={t.priority} label={t.priority_display} />
-        <span className={`small ${t.status === 'done' ? 'muted' : rd.tone}`}>{t.status === 'done' ? '✓' : rd.text}</span>
+        <span className={`small ${t.status === 'done' ? 'muted' : rd.tone}`}>{t.status === 'done' ? '✓' : rd.text}{t.status !== 'done' && t.due_time ? ` ${t.due_time.slice(0, 5)}` : ''}</span>
       </div>
       {t.steps_total > 0 && (
         <div className="steps-bar" title={`${t.steps_done}/${t.steps_total} qadam`}>
@@ -378,7 +384,7 @@ function TaskDetail({ id, me, onClose, onEdit, onChanged }: {
 
       <div className="detail-grid">
         <div><span className="muted">Loyiha</span>{task.project_name ?? 'Umumiy'}</div>
-        <div><span className="muted">Muddat</span><span className={st !== 'done' ? relDay(task.due_date).tone : ''}>{relDay(task.due_date).text}{task.due_date ? ` (${task.due_date.split('-').reverse().join('.')})` : ''}</span></div>
+        <div><span className="muted">Muddat</span><span className={st !== 'done' ? relDay(task.due_date).tone : ''}>{relDay(task.due_date).text}{task.due_date ? ` (${task.due_date.split('-').reverse().join('.')}${task.due_time ? ' ' + task.due_time.slice(0, 5) : ''})` : ''}</span></div>
         <div><span className="muted">Muhimlik</span><Badge value={task.priority} label={task.priority_display} /></div>
         <div><span className="muted">Sarflangan vaqt</span>{num(task.spent_hours)} soat</div>
         {task.returned_count > 0 && <div><span className="muted">Qaytarilgan</span><span className="text-bad">{task.returned_count} marta</span></div>}

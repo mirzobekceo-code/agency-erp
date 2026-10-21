@@ -36,11 +36,10 @@ class AgencySettings(models.Model):
     telegram_chat_id = models.CharField("Guruh ID", max_length=40, blank=True)
     telegram_tasks_thread_id = models.BigIntegerField("Vazifalar topic ID", null=True, blank=True)
     telegram_chat_title = models.CharField("Guruh nomi", max_length=200, blank=True)
-    tg_task_created = models.BooleanField("Yangi vazifa", default=True)
-    tg_task_assigned = models.BooleanField("Ijrochi o'zgardi", default=True)
-    tg_task_status = models.BooleanField("Holat o'zgardi", default=True)
-    tg_task_comment = models.BooleanField("Vazifaga izoh", default=True)
-    tg_daily_digest = models.BooleanField("Kunlik xulosa", default=True)
+    tg_task_created = models.BooleanField("Yangi vazifa (ijrochi @username bilan)", default=True)
+    tg_deadline_reminder = models.BooleanField("Muddatga oz qolganda eslatma", default=True)
+    reminder_hours = models.PositiveSmallIntegerField("Muddatdan necha soat oldin eslatish", default=2)
+    tg_daily_digest = models.BooleanField("Kunlik xulosa", default=False)
     last_digest_date = models.DateField("Oxirgi kunlik xulosa", null=True, blank=True)
 
     class Meta:

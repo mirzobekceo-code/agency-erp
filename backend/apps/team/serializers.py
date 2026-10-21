@@ -30,7 +30,7 @@ class AgencySettingsSerializer(serializers.ModelSerializer):
         if not (req and req.user.is_admin and secret):
             return None
         base = site_url() or req.build_absolute_uri("/").rstrip("/")
-        return f"{base}/api/cron/daily/?key={secret}"
+        return f"{base}/api/cron/tick/?key={secret}"
 
     def update(self, instance, validated_data):
         # Bo'sh token yuborilsa — mavjudi saqlanib qoladi (forma har safar tokenni ko'rsatmaydi)

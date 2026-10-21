@@ -47,6 +47,7 @@ urlpatterns = [
     path("api/payroll/mine/", team.my_payroll),
     path("api/telegram/test/", team.telegram_test),
     path("api/telegram/discover/", team.telegram_discover),
+    path("api/cron/tick/", team.cron_tick),
     path("api/cron/daily/", team.cron_daily),
     path("api/reports/dashboard/", reports.dashboard),
     path("api/reports/finance/", reports.finance_report),

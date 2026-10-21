@@ -29,29 +29,39 @@ class TelegramTests(APITestCase):
         self.sent.append((method, payload))
         return True, {"message_id": 1}
 
-    def test_task_lifecycle_messages(self):
+    def test_only_new_task_and_reassign_messages(self):
         self.client.force_authenticate(self.boss)
         with self.captureOnCommitCallbacks(execute=True):
-            r = self.client.post("/api/tasks/", {"project": self.p.pk, "title": "Reels <montaj>",
-                                                 "assignee": self.op.pk, "priority": "urgent"})
+            r = self.client.post("/api/tasks/", {"project": self.p.pk, "title": "Reels <montaj>", "assignee": self.op.pk,
+                                                 "priority": "urgent", "due_date": "2030-01-05", "due_time": "15:00"})
         tid = r.data["id"]
         method, payload = self.sent[-1]
         self.assertEqual((method, payload["chat_id"], payload["message_thread_id"]), ("sendMessage", "-1001", 7))
-        self.assertIn("Yangi vazifa", payload["text"])
-        self.assertIn("@sardor_op", payload["text"])
-        self.assertIn("Reels &lt;montaj&gt;", payload["text"])  # HTML xavfsiz
+        text = payload["text"]
+        for part in ("Yangi vazifa", "@sardor_op", "Reels &lt;montaj&gt;", "05.01.2030 15:00", "Berdi: Boss"):
+            self.assertIn(part, text)
+        n = len(self.sent)
+        # holat, izoh, tasdiq — Telegram'ga bormaydi
         self.client.force_authenticate(self.op)
         with self.captureOnCommitCallbacks(execute=True):
             self.client.patch(f"/api/tasks/{tid}/", {"status": "review"})
-        self.assertIn("Tasdiqqa yuborildi", self.sent[-1][1]["text"])
-        self.assertIn("Tasdiqlaydi: Boss", self.sent[-1][1]["text"])
+            self.client.post("/api/task-comments/", {"task": tid, "text": "Tayyor"})
+        self.client.force_authenticate(self.boss)
         with self.captureOnCommitCallbacks(execute=True):
-            self.client.post("/api/task-comments/", {"task": tid, "text": "Tayyor, ko'rib chiqing"})
-        self.assertIn("Izoh", self.sent[-1][1]["text"])
-        n = len(self.sent)
-        with self.captureOnCommitCallbacks(execute=True):
-            self.client.patch(f"/api/tasks/{tid}/", {"title": "Yangi nom"})  # holat o'zgarmadi
+            self.client.patch(f"/api/tasks/{tid}/", {"status": "done"})
         self.assertEqual(len(self.sent), n)
+        # boshqa xodimga o'tkazilsa — unga yangi vazifa xabari
+        other = User.objects.create_user("ali", password="x" * 8, first_name="Ali", telegram="ali_dz")
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.patch(f"/api/tasks/{tid}/", {"assignee": other.pk})
+        self.assertIn("o'tkazildi", self.sent[-1][1]["text"])
+        self.assertIn("@ali_dz", self.sent[-1][1]["text"])
+
+    def test_task_without_assignee_not_sent(self):
+        self.client.force_authenticate(self.boss)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post("/api/tasks/", {"title": "Egasiz"})
+        self.assertEqual(self.sent, [])
 
     def test_disabled_flags_and_unconfigured(self):
         s = AgencySettings.get()
@@ -59,12 +69,12 @@ class TelegramTests(APITestCase):
         s.save()
         self.client.force_authenticate(self.boss)
         with self.captureOnCommitCallbacks(execute=True):
-            self.client.post("/api/tasks/", {"project": self.p.pk, "title": "X"})
+            self.client.post("/api/tasks/", {"project": self.p.pk, "title": "X", "assignee": self.op.pk})
         self.assertEqual(self.sent, [])
         s.tg_task_created, s.telegram_chat_id = True, ""
         s.save()
         with self.captureOnCommitCallbacks(execute=True):
-            self.client.post("/api/tasks/", {"project": self.p.pk, "title": "Y"})
+            self.client.post("/api/tasks/", {"project": self.p.pk, "title": "Y", "assignee": self.op.pk})
         self.assertEqual(self.sent, [])
 
     def test_token_is_write_only(self):
@@ -98,12 +108,53 @@ class TelegramTests(APITestCase):
                               "topic_name": "Vazifalar", "last_text": "/start"}])
 
     @mock.patch.dict("os.environ", {"CRON_SECRET": "s3cret"})
+    def test_deadline_reminder(self):
+        from datetime import datetime
+
+        tz = timezone.get_current_timezone()
+        now = timezone.make_aware(datetime(2030, 3, 4, 13, 30), tz)
+        mk = lambda title, **kw: Task.objects.create(project=self.p, title=title, assignee=self.op, **kw)  # noqa: E731
+        soon = mk("Tez orada", due_date=now.date(), due_time=datetime(2030, 1, 1, 15, 0).time())   # 1.5 soat
+        mk("Uzoq", due_date=now.date(), due_time=datetime(2030, 1, 1, 17, 0).time())               # 3.5 soat
+        mk("O'tib ketgan", due_date=now.date(), due_time=datetime(2030, 1, 1, 12, 0).time())
+        mk("Bajarilgan", due_date=now.date(), due_time=datetime(2030, 1, 1, 14, 0).time(), status="done")
+        no_time = mk("Vaqtsiz", due_date=now.date())  # ish kuni oxiri 18:00 — 4.5 soat
+        Task.objects.create(project=self.p, title="Egasiz", due_date=now.date(), due_time=datetime(2030, 1, 1, 15, 0).time())
+        from apps.team import telegram
+
+        self.assertEqual(telegram.deadline_reminders(now), 1)
+        text = self.sent[-1][1]["text"]
+        self.assertIn("Tez orada", text)
+        self.assertIn("1 soat 30 daqiqa", text)
+        self.assertIn("@sardor_op", text)
+        self.assertEqual(telegram.deadline_reminders(now), 0)  # ikkinchi marta yuborilmaydi
+        # vaqtsiz vazifa: ish kuni oxiridan 2 soat oldin
+        self.assertEqual(telegram.deadline_reminders(now.replace(hour=16, minute=5)), 2)  # "Uzoq" va "Vaqtsiz"
+        # muddat o'zgarsa — qayta eslatiladi
+        soon.refresh_from_db()
+        self.assertIsNotNone(soon.reminder_sent_at)
+        self.client.force_authenticate(self.boss)
+        self.client.patch(f"/api/tasks/{soon.pk}/", {"due_time": "18:30"})
+        soon.refresh_from_db()
+        self.assertIsNone(soon.reminder_sent_at)
+        no_time.refresh_from_db()
+        self.assertIsNotNone(no_time.reminder_sent_at)
+        # cron endpoint
+        self.assertEqual(self.client.get("/api/cron/tick/", {"key": "xato"}).status_code, 403)
+        r = self.client.get("/api/cron/tick/", {"key": "s3cret"})
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("reminders", r.data)
+
+    @mock.patch.dict("os.environ", {"CRON_SECRET": "s3cret"})
     def test_daily_digest_cron(self):
+        s = AgencySettings.get()
+        s.tg_daily_digest = True
+        s.save()
         today = timezone.localdate()
         Task.objects.create(project=self.p, title="Kechikkan", assignee=self.op, due_date=today - timedelta(days=2))
         Task.objects.create(project=self.p, title="Bugungi", assignee=self.op, due_date=today)
         self.assertEqual(self.client.get("/api/cron/daily/", {"key": "xato"}).status_code, 403)
-        r = self.client.get("/api/cron/daily/", {"key": "s3cret"})
+        r = self.client.get("/api/cron/daily/", {"key": "s3cret", "force": "1"})
         self.assertEqual(r.status_code, 200, r.data)
         text = self.sent[-1][1]["text"]
         self.assertIn("Muddati o'tgan: 1", text)

@@ -73,6 +73,9 @@ class Task(models.Model):
         on_delete=models.SET_NULL, related_name="tasks",
     )
     due_date = models.DateField("Muddat", null=True, blank=True)
+    due_time = models.TimeField("Muddat vaqti", null=True, blank=True,
+                                help_text="Bo'sh — ish kuni oxiri (Sozlamalar)")
+    reminder_sent_at = models.DateTimeField("Muddat eslatmasi yuborilgan", null=True, blank=True)
     estimated_hours = models.DecimalField("Rejalashtirilgan soat", max_digits=6, decimal_places=2, default=0)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="created_tasks",
@@ -91,6 +94,23 @@ class Task(models.Model):
 
     def __str__(self):
         return self.title
+
+    @property
+    def deadline(self):
+        """Muddat sana+vaqt (vaqt kiritilmagan bo'lsa — ish kuni tugashi)."""
+        import datetime as dt
+
+        from django.utils import timezone
+
+        if not self.due_date:
+            return None
+        if self.due_time:
+            t = self.due_time
+        else:
+            from apps.team.models import AgencySettings
+
+            t = AgencySettings.get().work_end
+        return timezone.make_aware(dt.datetime.combine(self.due_date, t))
 
     def can_supervise(self, user):
         """Vazifani tasdiqlash/qaytarish, tahrirlash va boshqaga berish huquqi:

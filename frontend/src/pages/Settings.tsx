@@ -114,11 +114,9 @@ export default function SettingsPage() {
 }
 
 const TG_FLAGS: [string, string][] = [
-  ['tg_task_created', 'Yangi vazifa qo\'yilganda'],
-  ['tg_task_assigned', 'Vazifa boshqa xodimga biriktirilganda'],
-  ['tg_task_status', 'Holat o\'zgarganda (tekshiruvga, bajarildi)'],
-  ['tg_task_comment', 'Vazifaga izoh yozilganda'],
-  ['tg_daily_digest', 'Har kuni ertalab xulosa (bugungi va kechikkan vazifalar)'],
+  ['tg_task_created', 'Xodimga yangi vazifa yozilganda (ijrochi @username bilan belgilanadi)'],
+  ['tg_deadline_reminder', 'Muddatga oz qolganda eslatma'],
+  ['tg_daily_digest', 'Har kuni ish boshida xulosa (bugungi va kechikkan vazifalar)'],
 ]
 
 function TelegramSection({ v, set, onSaved }: { v: Row; set: (k: string, val: unknown) => void; onSaved: (d: Row) => void }) {
@@ -136,6 +134,7 @@ function TelegramSection({ v, set, onSaved }: { v: Row; set: (k: string, val: un
     const payload: Row = { telegram_chat_id: v.telegram_chat_id, telegram_tasks_thread_id: v.telegram_tasks_thread_id || null,
       telegram_chat_title: v.telegram_chat_title }
     for (const [k] of TG_FLAGS) payload[k] = v[k]
+    payload.reminder_hours = Number(v.reminder_hours) || 2
     if (token) payload.telegram_bot_token = token.trim()
     const r = await api.patch('/settings/', payload)
     onSaved(r.data); setToken(''); setMsg('Telegram sozlamalari saqlandi')
@@ -194,13 +193,20 @@ function TelegramSection({ v, set, onSaved }: { v: Row; set: (k: string, val: un
       )}
       <div className="tg-flags">
         {TG_FLAGS.map(([k, l]) => (
-          <label key={k} className="check"><input type="checkbox" checked={!!v[k]} onChange={(e) => set(k, e.target.checked)} /> {l}</label>
+          <label key={k} className="check"><input type="checkbox" checked={!!v[k]} onChange={(e) => set(k, e.target.checked)} /> {l}
+            {k === 'tg_deadline_reminder' && (
+              <span className="inline-num">— muddatdan <input className="input" type="number" min={1} max={48} value={v.reminder_hours ?? 2}
+                onChange={(e) => set('reminder_hours', e.target.value)} onClick={(e) => e.preventDefault()} /> soat oldin</span>
+            )}
+          </label>
         ))}
+        <small className="muted">Xabarda xodim belgilanishi uchun Jamoa → xodim kartochkasidagi "Telegram" maydoniga uning @username'ini yozing.
+          Tasdiqlash, qaytarish va izohlar Telegram'ga yuborilmaydi — ular platformada.</small>
       </div>
       {v.cron_url && (
         <p className="muted small">
-          Kunlik xulosa har kuni ertalab yuborilishi uchun <a href="https://cron-job.org" target="_blank" rel="noreferrer">cron-job.org</a> da
-          bepul vazifa yarating (masalan, har kuni 09:00, Toshkent vaqti) va shu manzilni kiriting:
+          <b>Muddat eslatmalari ishlashi uchun</b> <a href="https://cron-job.org" target="_blank" rel="noreferrer">cron-job.org</a> da
+          bepul vazifa yarating: <b>har 10 daqiqada</b> shu manzilni chaqirsin (bu serverni uyg'oq ham tutadi):
           <code className="tg-cron">{v.cron_url}</code>
         </p>
       )}

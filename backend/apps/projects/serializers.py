@@ -42,7 +42,7 @@ class TaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = Task
         fields = "__all__"
-        read_only_fields = ["created_by", "done_at", "returned_count"]
+        read_only_fields = ["created_by", "done_at", "returned_count", "reminder_sent_at"]
 
     def get_steps_total(self, obj):
         return len(obj.checklist or [])

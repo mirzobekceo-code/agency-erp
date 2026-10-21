@@ -349,8 +349,13 @@ def telegram_discover(request):
 
 @api_view(["GET", "POST"])
 @permission_classes([AllowAny])
-def cron_daily(request):
-    """Kunlik xulosa. Tashqi cron (masalan cron-job.org) har kuni ertalab chaqiradi: ?key=CRON_SECRET."""
+def cron_tick(request):
+    """Tashqi cron (cron-job.org) har 10 daqiqada chaqiradi: ?key=CRON_SECRET.
+
+    - muddatga oz qolgan vazifalar uchun eslatma;
+    - yoqilgan bo'lsa — ish kuni boshida bir marta kunlik xulosa.
+    Qo'shimcha foyda: bepul serverni "uyg'oq" tutadi.
+    """
     import os
 
     from . import telegram
@@ -359,16 +364,22 @@ def cron_daily(request):
     if not secret or request.query_params.get("key") != secret:
         raise PermissionDenied("Kalit noto'g'ri")
     s = AgencySettings.get()
-    today = timezone.localdate()
-    if not s.tg_daily_digest:
-        return Response({"detail": "Kunlik xulosa o'chirilgan"})
-    if s.last_digest_date == today and request.query_params.get("force") != "1":
-        return Response({"detail": "Bugun allaqachon yuborilgan"})
-    text = telegram.daily_digest(today)
-    if text:
-        ok, res = telegram.send_message(text, sync=True)
-        if not ok:
-            raise ValidationError({"detail": res})
-    s.last_digest_date = today
-    s.save(update_fields=["last_digest_date"])
-    return Response({"detail": "Yuborildi" if text else "Xabar uchun vazifa yo'q"})
+    reminders = telegram.deadline_reminders()
+    digest = "o'chirilgan"
+    now = timezone.localtime()
+    if s.tg_daily_digest:
+        due = now.time() >= s.work_start and s.is_workday(now.date())
+        if request.query_params.get("force") == "1" or (due and s.last_digest_date != now.date()):
+            text = telegram.daily_digest(now.date())
+            if text:
+                telegram.send_message(text, sync=True)
+            s.last_digest_date = now.date()
+            s.save(update_fields=["last_digest_date"])
+            digest = "yuborildi" if text else "vazifa yo'q"
+        else:
+            digest = "hali vaqti emas yoki bugun yuborilgan"
+    return Response({"reminders": reminders, "digest": digest})
+
+
+# Eski manzil bilan moslik
+cron_daily = cron_tick

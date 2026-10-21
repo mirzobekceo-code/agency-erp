@@ -117,6 +117,7 @@ class TaskViewSet(viewsets.ModelViewSet):
                 data["status"] = Task.Status.REVIEW
 
         old_status, old_assignee = task.status, task.assignee_id
+        old_deadline = (task.due_date, task.due_time)
         new_status = data.get("status", old_status)
         returned = supervisor and old_status == Task.Status.REVIEW and new_status in (
             Task.Status.IN_PROGRESS, Task.Status.TODO)
@@ -127,11 +128,14 @@ class TaskViewSet(viewsets.ModelViewSet):
             extra_fields["done_at"] = None
         if returned:
             extra_fields["returned_count"] = task.returned_count + 1
+        # Muddat o'zgarsa — eslatma qaytadan yuboriladi
+        if (data.get("due_date", task.due_date), data.get("due_time", task.due_time)) != old_deadline:
+            extra_fields["reminder_sent_at"] = None
         task = serializer.save(**extra_fields)
         if returned:
             TaskComment.objects.create(task=task, author=user,
                                        text=f"↩️ Qaytarildi{': ' + reason if reason else ''}")
-        telegram.task_updated(task, user, old_status, old_assignee, returned=returned, reason=reason)
+        telegram.task_updated(task, user, old_assignee)
 
     def perform_destroy(self, instance):
         if not instance.can_supervise(self.request.user):
@@ -145,8 +149,7 @@ class TaskCommentViewSet(viewsets.ModelViewSet):
     filterset_fields = ["task"]
 
     def perform_create(self, serializer):
-        comment = serializer.save(author=self.request.user)
-        telegram.task_commented(comment)
+        serializer.save(author=self.request.user)
 
     def perform_update(self, serializer):
         if serializer.instance.author_id != self.request.user.pk:

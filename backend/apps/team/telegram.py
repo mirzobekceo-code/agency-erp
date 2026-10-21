@@ -117,55 +117,75 @@ def _task_lines(task):
     return lines
 
 
-def task_created(task, actor):
+def _deadline_text(task):
+    if not task.due_date:
+        return None
+    t = task.due_time.strftime("%H:%M") if task.due_time else None
+    return f"{task.due_date:%d.%m.%Y}" + (f" {t}" if t else "")
+
+
+def task_created(task, actor, reassigned=False):
+    """Xodimga yangi vazifa yozilganda (yoki vazifa unga o'tkazilganda) — @username bilan."""
     from .models import AgencySettings
 
-    if not AgencySettings.get().tg_task_created:
+    if not task.assignee_id or not AgencySettings.get().tg_task_created:
         return
-    text = "\n".join([f"🆕 <b>Yangi vazifa</b>: {_task_link(task)}", *_task_lines(task),
-                      f"✍️ Qo'ydi: {escape(str(actor))}"])
-    send_message(text)
+    head = "👉 <b>Vazifa sizga o'tkazildi</b>" if reassigned else "🆕 <b>Yangi vazifa</b>"
+    lines = [f"{head}: {_task_link(task)}", f"👤 {_who(task.assignee)}", f"📁 {_proj(task)}"]
+    dl = _deadline_text(task)
+    if dl:
+        lines.append(f"📅 Muddat: {dl}")
+    if task.priority in ("high", "urgent"):
+        from apps.projects.models import Task
+
+        lines.append(f"{PRIORITY_ICON[task.priority]} {Task.Priority(task.priority).label}")
+    if actor and actor.pk != task.assignee_id:
+        lines.append(f"✍️ Berdi: {escape(str(actor))}")
+    send_message("\n".join(lines))
 
 
-def task_updated(task, actor, old_status, old_assignee_id, returned=False, reason=""):
+def task_updated(task, actor, old_assignee_id):
+    """Faqat ijrochi o'zgarganda xabar beriladi (yangi ijrochi uchun bu — yangi vazifa)."""
+    if task.assignee_id and task.assignee_id != old_assignee_id:
+        task_created(task, actor, reassigned=True)
+
+
+def deadline_reminders(now=None):
+    """Muddatiga N soat (yoki kamroq) qolgan, hali bajarilmagan vazifalar uchun bir martalik eslatma."""
+    from datetime import timedelta
+
+    from django.utils import timezone
+
     from apps.projects.models import Task
 
     from .models import AgencySettings
 
     s = AgencySettings.get()
-    if s.tg_task_assigned and old_assignee_id != task.assignee_id and task.assignee_id:
-        send_message("\n".join([f"👉 <b>Vazifa biriktirildi</b>: {_task_link(task)}", *_task_lines(task),
-                                f"✍️ {escape(str(actor))}"]))
-    if s.tg_task_status and old_status != task.status:
-        if returned:
-            why = f"\n📝 {escape(reason)}" if reason else ""
-            send_message(f"↩️ <b>Qaytarildi</b>: {_task_link(task)}\n📁 {_proj(task)}"
-                         f"\n👤 {_who(task.assignee)}{why}\n✍️ {escape(str(actor))}")
-            return
-        icon = {"done": "✅", "review": "👀", "in_progress": "▶️", "todo": "↩️"}.get(task.status, "🔄")
-        label = {"review": "Tasdiqqa yuborildi",
-                 "done": "Tasdiqlandi" if old_status == "review" else "Tayyor"}.get(task.status,
-                                                                                  Task.Status(task.status).label)
-        extra = ""
-        if task.status == "review" and task.created_by and task.created_by_id != actor.pk:
-            extra = f"\n🔎 Tasdiqlaydi: {_who(task.created_by)}"
-        elif task.status == "done" and task.assignee_id and task.assignee_id != actor.pk:
-            extra = f"\n👤 {_who(task.assignee)}"
-        send_message(f"{icon} <b>{escape(label)}</b>: {_task_link(task)}\n📁 {_proj(task)}"
-                     f"\n✍️ {escape(str(actor))}{extra}")
-
-
-def task_commented(comment):
-    from .models import AgencySettings
-
-    if not AgencySettings.get().tg_task_comment:
-        return
-    task = comment.task
-    body = escape(comment.text[:500])
-    mention = ""
-    if task.assignee_id and task.assignee_id != comment.author_id:
-        mention = f"\n👤 {_who(task.assignee)}"
-    send_message(f"💬 <b>Izoh</b>: {_task_link(task)}\n<b>{escape(str(comment.author))}:</b> {body}{mention}")
+    if not s.tg_deadline_reminder:
+        return 0
+    now = now or timezone.now()
+    horizon = now + timedelta(hours=s.reminder_hours or 2)
+    candidates = (
+        Task.objects.filter(reminder_sent_at__isnull=True, due_date__isnull=False, assignee__isnull=False,
+                            due_date__lte=timezone.localtime(horizon).date())
+        .exclude(status=Task.Status.DONE).select_related("assignee", "project")
+    )
+    sent = 0
+    for task in candidates:
+        dl = task.deadline
+        if not dl or not (now < dl <= horizon):
+            continue
+        left = dl - now
+        hours, minutes = int(left.total_seconds() // 3600), int(left.total_seconds() % 3600 // 60)
+        left_txt = f"{hours} soat {minutes} daqiqa" if hours else f"{minutes} daqiqa"
+        ok, _ = send_message(
+            f"⏰ <b>Muddatga {left_txt} qoldi</b>: {_task_link(task)}\n👤 {_who(task.assignee)}"
+            f"\n📁 {_proj(task)}\n📅 Muddat: {timezone.localtime(dl):%d.%m.%Y %H:%M}", sync=True)
+        if ok:
+            task.reminder_sent_at = now
+            task.save(update_fields=["reminder_sent_at"])
+            sent += 1
+    return sent
 
 
 def daily_digest(today):
