@@ -193,7 +193,8 @@ function TelegramSection({ v, set, users, onSaved }: { v: Row; set: (k: string, 
       {found && (
         <div className="tg-found">
           {found.length === 0 ? (
-            <p className="muted">Hech narsa topilmadi. Bot guruhga qo'shilganini tekshiring va "Vazifalar" topic'iga <code>/start</code> yozib, qayta bosing.</p>
+            <p className="muted">Bot hali guruhni ko'rmagan. Botni guruhdan <b>chiqarib, qayta qo'shing</b> va admin qiling, keyin
+              "Vazifalar" topic'iga <code>/start{botInfo?.username ? '@' + botInfo.username : ''}</code> yozing va shu tugmani qayta bosing.</p>
           ) : found.map((f) => (
             <div key={`${f.chat_id}-${f.thread_id}`} className="tg-row">
               <div><b>{f.chat_title}</b> → {f.topic_name || (f.thread_id ? `topic #${f.thread_id}` : 'Umumiy (General)')}
@@ -212,6 +213,14 @@ function TelegramSection({ v, set, users, onSaved }: { v: Row; set: (k: string, 
                 🤖 <b>@{botInfo.username}</b> · buyruqlar va tugmalar: {botInfo.webhook_ok ? <span className="text-good">✅ ishlayapti</span> : <span className="text-bad">ulanmagan</span>}
                 {' · '}shaxsiy chat ulagan xodimlar: <b>{botInfo.linked_users}</b>
                 {botInfo.last_error && <div className="text-bad small">Oxirgi xato: {botInfo.last_error}</div>}
+                <div className="small">
+                  {botInfo.last_update?.at
+                    ? <>Bot oxirgi marta xabar oldi: <b>{new Date(botInfo.last_update.at).toLocaleString('ru-RU')}</b> — {botInfo.last_update.chat_title || (botInfo.last_update.chat_type === 'private' ? 'shaxsiy chat' : botInfo.last_update.chat_id)}
+                      {botInfo.last_update.text ? ` · "${botInfo.last_update.text}"` : ''}
+                      {botInfo.last_update.error && <span className="text-bad"> · xato: {botInfo.last_update.error}</span>}</>
+                    : <span className="muted">Bot ulanganidan beri hali hech qanday xabar kelmagan.</span>}
+                  {botInfo.chats?.length > 0 && <> · Bot ko'rgan guruhlar: {botInfo.chats.map((c: Row) => c.title || c.chat_id).join(', ')}</>}
+                </div>
                 <div className="muted small">Har bir xodim <a href={`https://t.me/${botInfo.username}`} target="_blank" rel="noreferrer">t.me/{botInfo.username}</a> ga kirib <code>/start</code> bossin — shaxsiy xabarlar (frilanser to'lovlari, oylik hisobot) faqat shunda boradi.
                   Guruhda: <code>/vazifa @username Matn ertaga 15:00</code>, <code>/vazifalarim</code>.</div>
               </div>

@@ -55,6 +55,15 @@ class BotTests(BotBase):
         r = self.client.post("/api/telegram/webhook/", {"update_id": 1}, format="json")
         self.assertEqual(r.status_code, 403)
 
+    def test_last_update_and_chat_id_validation(self):
+        self.webhook(self.msg("salom", chat_id=-3003))
+        lu = AgencySettings.get().telegram_last_update
+        self.assertEqual((lu["kind"], lu["chat_id"], lu["error"]), ("message", "-3003", ""))
+        self.client.force_authenticate(self.boss)
+        r = self.client.patch("/api/settings/", {"telegram_chat_id": "mirzobek"}, format="json")
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(self.client.patch("/api/settings/", {"telegram_chat_id": "-1009"}, format="json").status_code, 200)
+
     def test_parse_task_text(self):
         today = date(2026, 11, 14)
         p = bot.parse_task_text("@sardor Kolleksiya syomkasi ertaga 15:00 !", today)

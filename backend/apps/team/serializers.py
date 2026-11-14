@@ -12,7 +12,16 @@ class AgencySettingsSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = AgencySettings
-        exclude = ["id", "last_digest_date", "last_kpi_month"]
+        exclude = ["id", "last_digest_date", "last_kpi_month", "telegram_last_update"]
+
+    def validate_telegram_chat_id(self, value):
+        import re
+
+        value = (value or "").strip()
+        if value and not re.fullmatch(r"-?\d+|@\w{4,}", value):
+            raise serializers.ValidationError(
+                "Guruh ID raqam bo'ladi (masalan -1001234567890). Qo'lda yozmang — \"Guruhni aniqlash\" ni bosing.")
+        return value
 
     kpi_recipient_name = serializers.StringRelatedField(source="kpi_recipient", read_only=True)
 

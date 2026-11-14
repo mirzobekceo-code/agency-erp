@@ -249,6 +249,17 @@ def handle_callback(cq):
     answer("Qabul qilindi ✅")
 
 
+def describe_update(update):
+    """Diagnostika uchun qisqa tavsif: qaysi chatdan, qanday turdagi xabar."""
+    for key in ("message", "edited_message", "my_chat_member", "callback_query"):
+        if key in update:
+            obj = update[key]
+            chat = obj.get("chat") or (obj.get("message") or {}).get("chat") or {}
+            return {"kind": key, "chat_id": str(chat.get("id", "")), "chat_title": chat.get("title", ""),
+                    "chat_type": chat.get("type", ""), "text": (obj.get("text") or obj.get("data") or "")[:60]}
+    return {"kind": ",".join(k for k in update if k != "update_id")}
+
+
 # ---------- Kirish nuqtasi ----------
 
 def handle_update(update):

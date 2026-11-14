@@ -58,6 +58,8 @@ class AgencySettings(models.Model):
         on_delete=models.SET_NULL, related_name="+",
     )
     last_kpi_month = models.CharField(max_length=7, blank=True)
+    # Diagnostika: bot oxirgi marta nimani qabul qildi (Sozlamalar'da ko'rsatiladi)
+    telegram_last_update = models.JSONField(default=dict, blank=True)
 
     class Meta:
         verbose_name = "Agentlik sozlamalari"

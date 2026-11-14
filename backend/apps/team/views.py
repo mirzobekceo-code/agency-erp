@@ -425,6 +425,8 @@ def telegram_bot(request):
     return Response({
         "connected": True, "username": me.get("username"), "webhook": bool(info.get("url")),
         "webhook_ok": info.get("url") == bot.webhook_url(), "last_error": info.get("last_error_message", ""),
+        "pending": info.get("pending_update_count", 0),
+        "last_update": AgencySettings.get().telegram_last_update,
         "linked_users": linked, "chats": TelegramChatSerializer(TelegramChat.objects.filter(active=True),
                                                                 many=True).data,
     })
@@ -450,10 +452,17 @@ def telegram_webhook(request):
 
     if request.headers.get("X-Telegram-Bot-Api-Secret-Token") != bot.webhook_secret():
         raise PermissionDenied()
+    error = ""
     try:
         bot.handle_update(request.data)
-    except Exception:  # Telegram qayta-qayta yubormasligi uchun har doim 200
+    except Exception as e:  # Telegram qayta-qayta yubormasligi uchun har doim 200
         logging.getLogger(__name__).exception("Telegram update xatosi")
+        error = f"{type(e).__name__}: {e}"[:300]
+    try:
+        AgencySettings.objects.filter(pk=1).update(telegram_last_update={
+            **bot.describe_update(request.data), "at": timezone.now().isoformat(), "error": error})
+    except Exception:
+        pass
     return Response({"ok": True})
 
 
