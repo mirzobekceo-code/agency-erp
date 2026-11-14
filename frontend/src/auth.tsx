@@ -12,6 +12,7 @@ export interface Me {
   can_see_finance: boolean
   can_mark_attendance: boolean
   position?: string
+  employee_type?: string
 }
 
 interface AuthCtx {

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import AgencySettings, Attendance, Note, NoteMessage, PayrollEntry
+from .models import AgencySettings, Attendance, Note, NoteMessage, PayrollEntry, PieceWork, TelegramChat, WorkRate
 
 
 class AgencySettingsSerializer(serializers.ModelSerializer):
@@ -12,7 +12,9 @@ class AgencySettingsSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = AgencySettings
-        exclude = ["id", "last_digest_date"]
+        exclude = ["id", "last_digest_date", "last_kpi_month"]
+
+    kpi_recipient_name = serializers.StringRelatedField(source="kpi_recipient", read_only=True)
 
     def get_telegram_configured(self, obj):
         from .telegram import bot_token
@@ -97,3 +99,45 @@ class NoteSerializer(serializers.ModelSerializer):
     def get_can_edit(self, obj):
         request = self.context.get("request")
         return bool(request and (obj.author_id == request.user.pk or request.user.is_admin))
+
+
+class TelegramChatSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TelegramChat
+        fields = ["chat_id", "title", "type", "topics", "active", "updated_at"]
+
+
+class WorkRateSerializer(serializers.ModelSerializer):
+    user_name = serializers.StringRelatedField(source="user", read_only=True)
+
+    class Meta:
+        model = WorkRate
+        fields = "__all__"
+
+
+class PieceWorkSerializer(serializers.ModelSerializer):
+    user_name = serializers.StringRelatedField(source="user", read_only=True)
+    project_name = serializers.StringRelatedField(source="project", read_only=True)
+    pay_mode_display = serializers.CharField(source="get_pay_mode_display", read_only=True)
+    price = serializers.DecimalField(max_digits=14, decimal_places=2, required=False)
+
+    class Meta:
+        model = PieceWork
+        fields = "__all__"
+        read_only_fields = ["amount", "paid_at", "expense", "task", "created_by"]
+        extra_kwargs = {"title": {"required": False}, "date": {"required": False}}
+
+    def validate(self, attrs):
+        rate = attrs.get("rate")
+        user = attrs.get("user", getattr(self.instance, "user", None))
+        if rate:
+            if user and rate.user_id != user.pk:
+                raise serializers.ValidationError({"rate": "Bu narx tanlangan xodimga tegishli emas."})
+            attrs.setdefault("title", rate.title)
+            if attrs.get("price") in (None, ""):
+                attrs["price"] = rate.price
+        if attrs.get("price") is None and not self.instance:
+            raise serializers.ValidationError({"price": "Narxni kiriting yoki ish turini tanlang."})
+        if not attrs.get("title") and not self.instance:
+            raise serializers.ValidationError({"title": "Ish nomini kiriting."})
+        return attrs

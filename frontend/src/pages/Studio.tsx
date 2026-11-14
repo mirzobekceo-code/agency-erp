@@ -22,6 +22,8 @@ export const postFields: Field[] = [
   { name: 'editor', label: 'Montajor', type: 'ref', ref: '/users/' },
   { name: 'designer', label: 'Dizayner', type: 'ref', ref: '/users/' },
   { name: 'shoot_at', label: 'Syomka vaqti', type: 'datetime' },
+  { name: 'shoot_location', label: 'Syomka joyi' },
+  { name: 'shoot_confirmed', label: "Syomka vaqti mijoz bilan kelishilgan — bir kun oldin mijoz guruhiga eslatma boradi", type: 'checkbox', default: false, full: true },
   { name: 'edit_deadline', label: 'Montaj / dizayn muddati', type: 'date' },
   { name: 'publish_at', label: 'Nashr vaqti', type: 'datetime' },
   { name: 'script', label: 'Ssenariy', type: 'textarea' },

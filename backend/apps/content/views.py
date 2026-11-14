@@ -53,6 +53,16 @@ class ContentPostViewSet(viewsets.ModelViewSet):
     search_fields = ["title", "caption", "project__name"]
     ordering_fields = ["publish_at", "created_at", "shoot_at"]
 
+    def perform_update(self, serializer):
+        post = serializer.instance
+        old = (post.shoot_at, post.shoot_confirmed)
+        data = serializer.validated_data
+        # Syomka vaqti o'zgarsa yoki qayta tasdiqlansa — mijozga eslatma yangi vaqt bo'yicha yuboriladi
+        if (data.get("shoot_at", old[0]), data.get("shoot_confirmed", old[1])) != old:
+            serializer.save(shoot_reminder_sent_at=None)
+        else:
+            serializer.save()
+
     def get_queryset(self):
         qs = ContentPost.objects.select_related(
             "project__client", "project__manager", "assignee", "operator", "editor", "designer"

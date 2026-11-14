@@ -7,7 +7,7 @@ import { L, longDateUz, money, relDay } from '../labels'
 import { TaskForm } from './Tasks'
 
 const MONTHS_SHORT = ['YAN', 'FEV', 'MAR', 'APR', 'MAY', 'IYN', 'IYL', 'AVG', 'SEN', 'OKT', 'NOY', 'DEK']
-const ALERT_ICON: Record<string, string> = { clock: '⏰', calendar: '📅', alarm: '⚠️' }
+const ALERT_ICON: Record<string, string> = { clock: '⏰', calendar: '📅', alarm: '⚠️', wallet: '💸', flag: '🚩' }
 
 export default function Dashboard() {
   const { user } = useAuth()

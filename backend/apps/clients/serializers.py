@@ -11,6 +11,16 @@ class ClientSerializer(serializers.ModelSerializer):
     class Meta:
         model = Client
         fields = "__all__"
+        read_only_fields = ["telegram_group_title"]
+
+    def validate(self, attrs):
+        # Guruh nomi bot ko'rgan guruhlar ro'yxatidan olinadi
+        if "telegram_group_id" in attrs:
+            from apps.team.models import TelegramChat
+
+            chat = TelegramChat.objects.filter(chat_id=attrs["telegram_group_id"]).first()
+            attrs["telegram_group_title"] = chat.title if chat else ""
+        return attrs
 
 
 class LeadSerializer(serializers.ModelSerializer):

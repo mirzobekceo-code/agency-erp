@@ -6,6 +6,7 @@ import { RecordForm } from '../components/CrudPage'
 import { Badge, PageHead, Stat, invalidateRefs } from '../components/ui'
 import { L, fmtDate, money, num, todayISO } from '../labels'
 import { projectFields } from './simple'
+import { DeliverableList } from './Deliverables'
 import { TaskBoard } from './Tasks'
 
 const monthStart = () => todayISO().slice(0, 8) + '01'
@@ -17,7 +18,7 @@ export default function ProjectDetail() {
   const [report, setReport] = useState<Row | null>(null)
   const [from, setFrom] = useState(monthStart())
   const [to, setTo] = useState(todayISO())
-  const [tab, setTab] = useState<'tasks' | 'report'>('tasks')
+  const [tab, setTab] = useState<'tasks' | 'deliverables' | 'report'>('tasks')
   const [editing, setEditing] = useState(false)
   const [error, setError] = useState('')
 
@@ -52,10 +53,12 @@ export default function ProjectDetail() {
 
       <div className="tabs">
         <button className={tab === 'tasks' ? 'on' : ''} onClick={() => setTab('tasks')}>Vazifalar</button>
+        <button className={tab === 'deliverables' ? 'on' : ''} onClick={() => setTab('deliverables')}>Majburiyatlar</button>
         <button className={tab === 'report' ? 'on' : ''} onClick={() => setTab('report')}>Mijoz uchun hisobot</button>
       </div>
 
       {tab === 'tasks' && <TaskBoard projectId={project.id} />}
+      {tab === 'deliverables' && <DeliverableList projectId={project.id} />}
 
       {tab === 'report' && report && (
         <div className="report">

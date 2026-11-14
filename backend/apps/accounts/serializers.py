@@ -8,14 +8,19 @@ class UserSerializer(serializers.ModelSerializer):
     role_display = serializers.CharField(source="get_role_display", read_only=True)
     job_display = serializers.CharField(source="get_job_display", read_only=True)
     password = serializers.CharField(write_only=True, required=False, min_length=8)
+    # Xodim botga /start yozganmi (shaxsiy xabarlar unga boradi)
+    telegram_linked = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             "id", "username", "password", "first_name", "last_name", "full_name", "email",
             "role", "role_display", "position", "phone", "telegram", "salary", "hired_at", "is_active",
-            "work_format", "employee_type", "track_attendance", "job", "job_display",
+            "work_format", "employee_type", "track_attendance", "job", "job_display", "telegram_linked",
         ]
+
+    def get_telegram_linked(self, obj):
+        return bool(obj.telegram_user_id)
 
     def get_full_name(self, obj):
         return str(obj)
@@ -57,6 +62,9 @@ class UserSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         password = validated_data.pop("password", None)
+        # Username o'zgarsa — eski Telegram bog'lanishi bekor (boshqa odam bo'lishi mumkin)
+        if "telegram" in validated_data and validated_data["telegram"] != instance.telegram:
+            instance.telegram_user_id = None
         for k, v in validated_data.items():
             setattr(instance, k, v)
         if password:

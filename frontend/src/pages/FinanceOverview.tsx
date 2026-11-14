@@ -81,6 +81,9 @@ export default function FinanceOverview() {
             <Stat label="Oyliklardan qoldiq" value={money(d.payroll_left)}
               hint={<Link to="/payroll">vedomost ({fmtDate(d.payroll_pay_date)}) →</Link>}
               tone={Number(d.payroll_left) > 0 ? 'bad' : undefined} />
+            <Stat label="Frilanserlardan qarzimiz" value={money(d.freelance_unpaid)}
+              hint={<Link to="/freelance">shu oy to'landi: {money(d.freelance_paid)} →</Link>}
+              tone={Number(d.freelance_unpaid) > 0 ? 'warn' : undefined} />
           </div>
 
           <div className="fin-grid">

@@ -41,6 +41,23 @@ class AgencySettings(models.Model):
     reminder_hours = models.PositiveSmallIntegerField("Muddatdan necha soat oldin eslatish", default=2)
     tg_daily_digest = models.BooleanField("Kunlik xulosa", default=False)
     last_digest_date = models.DateField("Oxirgi kunlik xulosa", null=True, blank=True)
+    tg_deadline_buttons = models.BooleanField("Eslatmada holatni so'rash (tugmalar)", default=True)
+    # Mijoz guruhlariga — faqat shu eslatma, boshqa hech narsa
+    tg_shoot_reminder = models.BooleanField("Mijoz guruhiga syomka eslatmasi", default=True)
+    shoot_reminder_time = models.TimeField("Syomka eslatmasi vaqti (bir kun oldin)", default=time(10, 0))
+    shoot_reminder_text = models.TextField(
+        "Syomka eslatmasi matni",
+        default="Assalomu alaykum! 📅 Eslatib o'tamiz: ertaga, {sana} kuni soat {vaqt} da syomkamiz bor.{joy}\n"
+                "Hurmat bilan, {agentlik} jamoasi",
+    )
+    # Frilanserlarga — faqat shaxsiy chatda
+    tg_freelance_dm = models.BooleanField("Frilanserga ish va to'lov haqida shaxsiy xabar", default=True)
+    tg_monthly_kpi = models.BooleanField("Oy oxirida samaradorlik hisoboti (shaxsiy)", default=True)
+    kpi_recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="Oylik hisobotni oluvchi", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+    last_kpi_month = models.CharField(max_length=7, blank=True)
 
     class Meta:
         verbose_name = "Agentlik sozlamalari"
@@ -198,3 +215,78 @@ class NoteMessage(models.Model):
 
     class Meta:
         ordering = ["created_at"]
+
+
+class TelegramChat(models.Model):
+    """Bot qo'shilgan guruhlar (webhook orqali avtomatik yoziladi) — guruh tanlash uchun."""
+
+    chat_id = models.CharField(max_length=40, unique=True)
+    title = models.CharField(max_length=200, blank=True)
+    type = models.CharField(max_length=20, blank=True)
+    # {"123": "Vazifalar"} — forum topic'lari
+    topics = models.JSONField(default=dict, blank=True)
+    active = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["title"]
+
+    def __str__(self):
+        return self.title or self.chat_id
+
+
+class WorkRate(models.Model):
+    """Frilanserning donabay narxi: "Reels montaji — 150 000". Har bir xodimda o'z narxi."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name="Xodim", on_delete=models.CASCADE,
+                             related_name="work_rates")
+    title = models.CharField("Ish turi", max_length=120)
+    price = models.DecimalField("Narxi (1 dona)", max_digits=14, decimal_places=2)
+    active = models.BooleanField("Faol", default=True)
+
+    class Meta:
+        verbose_name = "Donabay narx"
+        verbose_name_plural = "Donabay narxlar"
+        ordering = ["user__first_name", "title"]
+
+    def __str__(self):
+        return f"{self.title} — {self.price:,.0f}"
+
+
+class PieceWork(models.Model):
+    """Frilanser bajargan bitta ish va unga hisoblangan pul."""
+
+    class PayMode(models.TextChoices):
+        NOW = "now", "Darhol"
+        MONTH = "month", "Oy oxirida"
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name="Xodim", on_delete=models.CASCADE,
+                             related_name="piece_works")
+    rate = models.ForeignKey(WorkRate, verbose_name="Ish turi", null=True, blank=True, on_delete=models.SET_NULL,
+                             related_name="+")
+    title = models.CharField("Ish", max_length=255)
+    quantity = models.DecimalField("Soni", max_digits=8, decimal_places=2, default=1)
+    price = models.DecimalField("Narxi", max_digits=14, decimal_places=2)
+    amount = models.DecimalField("Summa", max_digits=14, decimal_places=2)
+    date = models.DateField("Sana")
+    project = models.ForeignKey("projects.Project", verbose_name="Loyiha", null=True, blank=True,
+                                on_delete=models.SET_NULL, related_name="piece_works")
+    task = models.OneToOneField("projects.Task", null=True, blank=True, on_delete=models.SET_NULL,
+                                related_name="piece_work")
+    pay_mode = models.CharField("To'lov", max_length=10, choices=PayMode.choices, default=PayMode.MONTH)
+    paid_at = models.DateField("To'langan sana", null=True, blank=True)
+    expense = models.OneToOneField("finance.Expense", null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name="piece_work")
+    note = models.CharField("Izoh", max_length=255, blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Donabay ish"
+        verbose_name_plural = "Donabay ishlar"
+        ordering = ["-date", "-id"]
+
+    def save(self, *args, **kwargs):
+        self.amount = (self.quantity or 0) * (self.price or 0)
+        super().save(*args, **kwargs)

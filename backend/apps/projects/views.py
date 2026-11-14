@@ -9,10 +9,12 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
 from apps.accounts.permissions import ManagerOrReadOnly, has_role
-from apps.team import telegram
+from apps.team import freelance, telegram
 
-from .models import Project, Task, TaskComment, TimeEntry
-from .serializers import ProjectSerializer, TaskCommentSerializer, TaskSerializer, TimeEntrySerializer
+from .models import Deliverable, Project, Task, TaskComment, TimeEntry
+from .serializers import (
+    DeliverableSerializer, ProjectSerializer, TaskCommentSerializer, TaskSerializer, TimeEntrySerializer,
+)
 
 
 class ProjectViewSet(viewsets.ModelViewSet):
@@ -31,6 +33,20 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 tasks_done=Count("tasks", filter=Q(tasks__status=Task.Status.DONE), distinct=True),
             )
         )
+
+
+class DeliverableViewSet(viewsets.ModelViewSet):
+    """Loyiha majburiyatlari: rahbar, PM va B2B o'zgartiradi, hamma ko'radi."""
+
+    serializer_class = DeliverableSerializer
+    permission_classes = [ManagerOrReadOnly]
+    filterset_fields = ["project", "responsible", "project__client"]
+
+    def get_queryset(self):
+        qs = Deliverable.objects.select_related("project__client", "responsible")
+        if self.request.query_params.get("active") == "1":
+            qs = qs.filter(project__status__in=["planning", "active"])
+        return qs
 
 
 # Ijrochi (vazifani bergan bo'lmasa) faqat shu maydonlarni o'zgartira oladi
@@ -70,7 +86,7 @@ class TaskViewSet(viewsets.ModelViewSet):
     ordering_fields = ["due_date", "priority", "created_at", "updated_at", "done_at"]
 
     def get_queryset(self):
-        qs = Task.objects.select_related("project", "assignee", "created_by").order_by("due_date", "-created_at").annotate(
+        qs = Task.objects.select_related("project", "assignee", "created_by", "piece_rate").order_by("due_date", "-created_at").annotate(
             spent_hours=Coalesce(Sum("time_entries__hours"), Value(0), output_field=Task._meta.get_field("estimated_hours"))
         )
         tab = self.request.query_params.get("tab")
@@ -95,9 +111,12 @@ class TaskViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.validated_data.pop("return_reason", None)
         status_ = serializer.validated_data.get("status", Task.Status.TODO)
-        task = serializer.save(created_by=self.request.user,
-                               done_at=timezone.now() if status_ == Task.Status.DONE else None)
+        done = status_ == Task.Status.DONE
+        task = serializer.save(created_by=self.request.user, done_at=timezone.now() if done else None,
+                               submitted_at=timezone.now() if done else None)
         telegram.task_created(task, self.request.user)
+        if done:
+            freelance.accrue_for_task(task, self.request.user)
 
     def perform_update(self, serializer):
         user = self.request.user
@@ -126,6 +145,9 @@ class TaskViewSet(viewsets.ModelViewSet):
             extra_fields["done_at"] = timezone.now()
         elif new_status != Task.Status.DONE:
             extra_fields["done_at"] = None
+        submitted = (Task.Status.REVIEW, Task.Status.DONE)
+        if new_status in submitted and (old_status not in submitted or not task.submitted_at):
+            extra_fields["submitted_at"] = timezone.now()
         if returned:
             extra_fields["returned_count"] = task.returned_count + 1
         # Muddat o'zgarsa — eslatma qaytadan yuboriladi
@@ -136,6 +158,10 @@ class TaskViewSet(viewsets.ModelViewSet):
             TaskComment.objects.create(task=task, author=user,
                                        text=f"↩️ Qaytarildi{': ' + reason if reason else ''}")
         telegram.task_updated(task, user, old_assignee)
+        if new_status == Task.Status.DONE and old_status != Task.Status.DONE:
+            freelance.accrue_for_task(task, user)
+        elif old_status == Task.Status.DONE and new_status != Task.Status.DONE:
+            freelance.cancel_for_task(task)
 
     def perform_destroy(self, instance):
         if not instance.can_supervise(self.request.user):

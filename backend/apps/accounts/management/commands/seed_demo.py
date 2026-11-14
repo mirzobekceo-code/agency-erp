@@ -152,6 +152,7 @@ class Command(BaseCommand):
                                 expected_value=Decimal(random.randint(5, 20) * 1_000_000), service="SMM + target")
 
         seed_team(staff, projects, today)
+        seed_freelance_and_deliverables(staff, projects, today)
 
         self.stdout.write(self.style.SUCCESS(
             "Demo ma'lumotlar yaratildi. Xodimlar: aziz (PM), malika (SMM), sardor (operator), bobur (montajor), "
@@ -186,3 +187,29 @@ def seed_team(staff, projects, today):
                         body="Maqsad: yangi non turlarini tanishtirish.\nAuditoriya: 25–45 yosh oilalar.\nTon: iliq, uy nonidek.")
     Note.objects.create(title="Reels g'oyalari", kind="idea", author=staff[1], shared=True,
                         body="1. Tandirdan non chiqishi (ASMR)\n2. Mijoz fikrlari\n3. Bir kun novvoyxonada")
+
+
+def seed_freelance_and_deliverables(staff, projects, today):
+    """Montajor — frilanser (donabay), loyihalarga majburiyatlar."""
+    from apps.projects.models import Deliverable
+    from apps.team.models import PieceWork, WorkRate
+
+    editor = staff[3]
+    editor.employee_type, editor.salary, editor.track_attendance = "freelance", Decimal("0"), False
+    editor.save()
+    reels = WorkRate.objects.create(user=editor, title="Reels montaji", price=Decimal("150000"))
+    long = WorkRate.objects.create(user=editor, title="Uzun video montaji", price=Decimal("400000"))
+    for i, (rate, mode, paid) in enumerate([(reels, "month", False), (reels, "month", False), (long, "now", False),
+                                             (reels, "month", True), (long, "now", True)]):
+        PieceWork.objects.create(user=editor, rate=rate, title=rate.title, price=rate.price, pay_mode=mode,
+                                 project=projects[i % len(projects)], date=today - timedelta(days=3 * i),
+                                 paid_at=today - timedelta(days=i) if paid else None)
+    start = today.replace(day=1)
+    end = (start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+    for p in projects[:3]:
+        for title, qty, ctype in [("Reels", 8, "reels"), ("Post", 12, "post"), ("Syomka", 2, "")]:
+            Deliverable.objects.create(project=p, title=title, quantity=qty, content_type=ctype,
+                                       done=1 if not ctype else 0, period_start=start, due_date=end,
+                                       responsible=staff[1] if ctype else staff[2])
+        Deliverable.objects.create(project=p, title="Oylik hisobot mijozga", quantity=1, due_date=end,
+                                   responsible=staff[0])

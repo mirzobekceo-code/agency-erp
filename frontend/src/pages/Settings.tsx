@@ -7,7 +7,7 @@ const DAYS = ['Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh', 'Ya']
 /** Vaqtlarni HH:MM, summalarni butun son ko'rinishiga keltiradi. */
 function normalize(d: Row): Row {
   const out: Row = { ...d }
-  for (const k of ['work_start', 'work_end', 'late_limit']) out[k] = String(d[k]).slice(0, 5)
+  for (const k of ['work_start', 'work_end', 'late_limit', 'shoot_reminder_time']) out[k] = String(d[k]).slice(0, 5)
   for (const k of ['usd_rate', 'late_fine', 'late_fine_hard', 'absent_fine', 'early_fine']) out[k] = String(Number(d[k]))
   return out
 }
@@ -108,7 +108,7 @@ export default function SettingsPage() {
         </section>
       </div>
 
-      <TelegramSection v={v} set={set} onSaved={(d) => setV(normalize(d))} />
+      <TelegramSection v={v} set={set} users={users} onSaved={(d) => setV(normalize(d))} />
     </form>
   )
 }
@@ -116,10 +116,19 @@ export default function SettingsPage() {
 const TG_FLAGS: [string, string][] = [
   ['tg_task_created', 'Xodimga yangi vazifa yozilganda (ijrochi @username bilan belgilanadi)'],
   ['tg_deadline_reminder', 'Muddatga oz qolganda eslatma'],
+  ['tg_deadline_buttons', "Eslatmada ijrochidan holatni so'rash: ✅ Tayyor / ⏳ Jarayonda / ⚠️ Kechikadi tugmalari"],
   ['tg_daily_digest', 'Har kuni ish boshida xulosa (bugungi va kechikkan vazifalar)'],
 ]
+const TG_PRIVATE: [string, string][] = [
+  ['tg_freelance_dm', "Frilanserga: qaysi ish qabul qilindi va qancha pul qo'shildi / to'landi"],
+  ['tg_monthly_kpi', 'Oy oxirida xodimlar samaradorligi hisoboti'],
+]
+const TG_EXTRA = ['tg_shoot_reminder', 'shoot_reminder_time', 'shoot_reminder_text', 'kpi_recipient']
 
-function TelegramSection({ v, set, onSaved }: { v: Row; set: (k: string, val: unknown) => void; onSaved: (d: Row) => void }) {
+function TelegramSection({ v, set, users, onSaved }: { v: Row; set: (k: string, val: unknown) => void; users: Row[]; onSaved: (d: Row) => void }) {
+  const [botInfo, setBotInfo] = useState<Row | null>(null)
+  const loadBot = () => { api.get('/telegram/bot/').then((r) => setBotInfo(r.data)).catch(() => setBotInfo(null)) }
+  useEffect(() => { if (v.telegram_configured) loadBot() }, [v.telegram_configured])
   const [token, setToken] = useState('')
   const [found, setFound] = useState<Row[] | null>(null)
   const [msg, setMsg] = useState('')
@@ -133,11 +142,15 @@ function TelegramSection({ v, set, onSaved }: { v: Row; set: (k: string, val: un
   const saveTg = () => run('save', async () => {
     const payload: Row = { telegram_chat_id: v.telegram_chat_id, telegram_tasks_thread_id: v.telegram_tasks_thread_id || null,
       telegram_chat_title: v.telegram_chat_title }
-    for (const [k] of TG_FLAGS) payload[k] = v[k]
+    for (const [k] of [...TG_FLAGS, ...TG_PRIVATE]) payload[k] = v[k]
+    for (const k of TG_EXTRA) payload[k] = v[k] === '' ? null : v[k]
     payload.reminder_hours = Number(v.reminder_hours) || 2
     if (token) payload.telegram_bot_token = token.trim()
     const r = await api.patch('/settings/', payload)
-    onSaved(r.data); setToken(''); setMsg('Telegram sozlamalari saqlandi')
+    onSaved(r.data); setToken(''); setMsg('Telegram sozlamalari saqlandi'); loadBot()
+  })
+  const connectBot = () => run('bot', async () => {
+    const r = await api.post('/telegram/bot/'); setBotInfo(r.data); setMsg('Bot ulandi: guruhdagi buyruqlar va tugmalar ishlaydi')
   })
   const discover = () => run('discover', async () => {
     if (token) { const r = await api.patch('/settings/', { telegram_bot_token: token.trim() }); onSaved(r.data); setToken('') }
@@ -191,6 +204,23 @@ function TelegramSection({ v, set, onSaved }: { v: Row; set: (k: string, val: un
           ))}
         </div>
       )}
+      {botInfo && (
+        <div className="tg-bot">
+          {botInfo.connected ? (
+            <>
+              <div>
+                🤖 <b>@{botInfo.username}</b> · buyruqlar va tugmalar: {botInfo.webhook_ok ? <span className="text-good">✅ ishlayapti</span> : <span className="text-bad">ulanmagan</span>}
+                {' · '}shaxsiy chat ulagan xodimlar: <b>{botInfo.linked_users}</b>
+                {botInfo.last_error && <div className="text-bad small">Oxirgi xato: {botInfo.last_error}</div>}
+                <div className="muted small">Har bir xodim <a href={`https://t.me/${botInfo.username}`} target="_blank" rel="noreferrer">t.me/{botInfo.username}</a> ga kirib <code>/start</code> bossin — shaxsiy xabarlar (frilanser to'lovlari, oylik hisobot) faqat shunda boradi.
+                  Guruhda: <code>/vazifa @username Matn ertaga 15:00</code>, <code>/vazifalarim</code>.</div>
+              </div>
+              {!botInfo.webhook_ok && <button type="button" className="btn btn-primary" onClick={connectBot} disabled={!!busy}>{busy === 'bot' ? 'Ulanmoqda…' : 'Botni ulash'}</button>}
+            </>
+          ) : <span className="text-bad">Bot javob bermadi: {botInfo.error}</span>}
+        </div>
+      )}
+      <h4>Jamoa guruhiga ("Vazifalar" topic'i)</h4>
       <div className="tg-flags">
         {TG_FLAGS.map(([k, l]) => (
           <label key={k} className="check"><input type="checkbox" checked={!!v[k]} onChange={(e) => set(k, e.target.checked)} /> {l}
@@ -203,10 +233,36 @@ function TelegramSection({ v, set, onSaved }: { v: Row; set: (k: string, val: un
         <small className="muted">Xabarda xodim belgilanishi uchun Jamoa → xodim kartochkasidagi "Telegram" maydoniga uning @username'ini yozing.
           Tasdiqlash, qaytarish va izohlar Telegram'ga yuborilmaydi — ular platformada.</small>
       </div>
+
+      <h4>Mijoz guruhlariga — faqat syomka eslatmasi</h4>
+      <div className="tg-flags">
+        <label className="check"><input type="checkbox" checked={!!v.tg_shoot_reminder} onChange={(e) => set('tg_shoot_reminder', e.target.checked)} /> Kelishilgan syomkadan bir kun oldin, soat
+          <span className="inline-num"><input className="input inline-time" type="time" value={v.shoot_reminder_time ?? '10:00'} onChange={(e) => set('shoot_reminder_time', e.target.value)} onClick={(e) => e.preventDefault()} /> da</span>
+        </label>
+        <label className="field full"><span>Xabar matni</span>
+          <textarea className="input" rows={3} value={v.shoot_reminder_text ?? ''} onChange={(e) => set('shoot_reminder_text', e.target.value)} />
+          <small className="muted">O'rniga qo'yiladi: <code>{'{sana}'}</code> <code>{'{vaqt}'}</code> <code>{'{joy}'}</code> <code>{'{mijoz}'}</code> <code>{'{agentlik}'}</code>.
+            Bot mijoz guruhida boshqa hech narsa yozmaydi va hech kimga javob bermaydi. Guruhni Mijozlar → mijoz kartochkasida tanlang (avval botni o'sha guruhga qo'shing).</small>
+        </label>
+      </div>
+
+      <h4>Shaxsiy xabarlar (guruhga chiqmaydi)</h4>
+      <div className="tg-flags">
+        {TG_PRIVATE.map(([k, l]) => (
+          <label key={k} className="check"><input type="checkbox" checked={!!v[k]} onChange={(e) => set(k, e.target.checked)} /> {l}</label>
+        ))}
+        <label className="field"><span>Oylik hisobotni oladi</span>
+          <select className="input" value={v.kpi_recipient ?? ''} onChange={(e) => set('kpi_recipient', e.target.value ? Number(e.target.value) : null)}>
+            <option value="">— Rahbar (botga /start yozgan birinchi admin) —</option>
+            {users.map((u) => <option key={u.id} value={u.id}>{refLabel(u)}{u.telegram_linked ? '' : ' (botga /start yozmagan)'}</option>)}
+          </select>
+        </label>
+      </div>
       {v.cron_url && (
         <p className="muted small">
-          <b>Muddat eslatmalari ishlashi uchun</b> <a href="https://cron-job.org" target="_blank" rel="noreferrer">cron-job.org</a> da
-          bepul vazifa yarating: <b>har 10 daqiqada</b> shu manzilni chaqirsin (bu serverni uyg'oq ham tutadi):
+          <b>Eslatmalar ishlashi uchun</b> shu manzil <b>har 10 daqiqada</b> chaqirilishi kerak (serverni uyg'oq ham tutadi):
+          GitHub'dagi repoda <b>Settings → Secrets → Actions</b> ga <code>CRON_URL</code> nomi bilan qo'ying (tayyor workflow bor)
+          yoki <a href="https://cron-job.org" target="_blank" rel="noreferrer">cron-job.org</a> da bepul vazifa yarating.
           <code className="tg-cron">{v.cron_url}</code>
         </p>
       )}

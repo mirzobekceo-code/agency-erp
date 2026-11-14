@@ -424,7 +424,7 @@ a.progress-row:hover .progress-name { color: var(--accent); }
 .fin-links { display: flex; gap: 14px; flex-wrap: wrap; margin-left: auto; }
 .fin-links a { color: var(--on-bg); opacity: 0.85; font-size: 13.5px; }
 .fin-links a:hover { opacity: 1; }
-.fin-stats { grid-template-columns: repeat(3, 1fr); }
+.fin-stats { grid-template-columns: repeat(4, 1fr); }
 .fin-grid { display: grid; grid-template-columns: 3fr 2fr; gap: 16px; margin-bottom: 16px; }
 .fin-grid .card { margin-bottom: 0; }
 .stack-bar { display: flex; gap: 2px; height: 22px; border-radius: 6px; overflow: hidden; background: var(--surface); margin: 6px 0 14px; }
@@ -573,3 +573,23 @@ a.progress-row:hover .progress-name { color: var(--accent); }
 .due-row { display: grid; grid-template-columns: 1fr 110px; gap: 8px; }
 .inline-num { display: inline-flex; align-items: center; gap: 6px; margin-left: 6px; }
 .inline-num .input { width: 64px; padding: 3px 6px; }
+
+/* Majburiyatlar / frilanser / samaradorlik */
+.on-bg { color: var(--on-bg); }
+.bar { height: 8px; background: var(--surface-2); border-radius: 999px; overflow: hidden; margin-bottom: 3px; }
+.bar > i { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+.bar > i.good { background: var(--good); }
+.bar > i.warn { background: #d99a00; }
+.bar > i.bad { background: var(--bad); }
+.btn-sm { padding: 3px 9px; font-size: 12.5px; }
+.table td .btn-sm + .btn-sm { margin-left: 4px; }
+.nowrap { white-space: nowrap; }
+.rate-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 14px; }
+.rate-row { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--grid); font-size: 14px; }
+.piece-box { background: var(--warn-bg); border-radius: 10px; padding: 10px 12px; }
+.piece-row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 70px) minmax(0, 1.2fr); gap: 8px; }
+@media (max-width: 560px) { .piece-row { grid-template-columns: 1fr; } }
+.tg-bot { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--info-bg); border-radius: 10px; padding: 10px 12px; margin: 12px 0; font-size: 14px; }
+.tg-card h4 { margin: 18px 0 6px; font-size: 14px; }
+.text-good { color: var(--good); }
+.inline-time { width: 110px !important; }

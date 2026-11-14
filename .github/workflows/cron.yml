@@ -1,0 +1,22 @@
+# Har 10 daqiqada ERP'ni "uyg'otadi": muddat eslatmalari, mijozga syomka eslatmasi, oy oxiri hisoboti.
+# Sozlash: GitHub → Settings → Secrets and variables → Actions → New repository secret
+#   Name: CRON_URL, Value: Sozlamalar → Telegram bo'limidagi cron havolasi
+name: ERP cron
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Cron havolasini chaqirish
+        env:
+          CRON_URL: ${{ secrets.CRON_URL }}
+        run: |
+          if [ -z "$CRON_URL" ]; then echo "CRON_URL secret kiritilmagan"; exit 0; fi
+          # Bepul server uxlab qolgan bo'lsa, uyg'onishi uchun 2 daqiqagacha kutamiz
+          curl -fsS --max-time 120 --retry 2 --retry-delay 10 "$CRON_URL"

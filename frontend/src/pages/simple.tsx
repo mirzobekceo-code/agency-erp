@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, errorText, type Row } from '../api'
 import { useAuth } from '../auth'
@@ -10,6 +10,13 @@ const badge = (map: Record<string, string>, key: string) => (r: Row) => <Badge v
 
 export function ClientsPage() {
   const { can } = useAuth()
+  const [groups, setGroups] = useState<Record<string, string>>({})
+  useEffect(() => {
+    if (!can('manager', 'sales')) return
+    api.get<{ chat_id: string; title: string }[]>('/telegram/chats/')
+      .then((r) => setGroups(Object.fromEntries(r.data.map((c) => [c.chat_id, c.title || c.chat_id]))))
+      .catch(() => {})
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <CrudPage
       title="Mijozlar" endpoint="/clients/" canEdit={can('manager', 'sales')}
@@ -21,6 +28,7 @@ export function ClientsPage() {
         { key: 'phone', label: 'Telefon' },
         { key: 'manager_name', label: 'Menejer' },
         { key: 'projects_count', label: 'Loyihalar', align: 'right' },
+        { key: 'telegram_group_title', label: 'Telegram guruh', render: (r) => r.telegram_group_title || <span className="muted">—</span> },
         { key: 'status', label: 'Holat', render: badge(L.clientStatus, 'status') },
       ]}
       fields={[
@@ -30,6 +38,8 @@ export function ClientsPage() {
         { name: 'phone', label: 'Telefon' },
         { name: 'email', label: 'Email', type: 'email' },
         { name: 'telegram', label: 'Telegram' },
+        { name: 'telegram_group_id', label: "Mijoz bilan Telegram guruh (bot faqat syomka eslatmasini yozadi)", type: 'select',
+          options: groups, full: true },
         { name: 'inn', label: 'STIR (INN)' },
         { name: 'address', label: 'Manzil' },
         { name: 'status', label: 'Holat', type: 'select', options: L.clientStatus, required: true, default: 'active' },
@@ -346,6 +356,9 @@ export function UsersPage() {
         { key: 'job', label: 'Lavozim', render: (r) => r.position || r.job_display },
         { key: 'role', label: 'Kirish huquqi', render: (r) => r.role_display },
         { key: 'phone', label: 'Telefon' },
+        { key: 'telegram', label: 'Telegram', render: (r) => !r.telegram ? <span className="muted">—</span>
+          : <span title={r.telegram_linked ? 'Shaxsiy xabarlar boradi' : "Botga /start yozmagan — shaxsiy xabar bormaydi"}>
+              {r.telegram} {r.telegram_linked ? '✅' : <span className="muted small">(/start yo'q)</span>}</span> },
         ...(can('accountant') ? [{ key: 'salary', label: 'Maosh', align: 'right' as const, render: (r: Row) => money(r.salary) }] : []),
         { key: 'is_active', label: 'Holat', render: (r) => <Badge value={r.is_active ? 'active' : 'archived'} label={r.is_active ? 'Faol' : 'Nofaol'} /> },
       ]}

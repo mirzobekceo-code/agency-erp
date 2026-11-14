@@ -10,7 +10,7 @@ from apps.accounts.views import MeView, UserViewSet, change_password
 from apps.clients.views import ClientViewSet, ContractViewSet, LeadViewSet
 from apps.content.views import ClientReportViewSet, ContentPostViewSet
 from apps.finance.views import AdSpendViewSet, ExpenseViewSet, InvoiceViewSet, PaymentViewSet, receive_payment
-from apps.projects.views import ProjectViewSet, TaskCommentViewSet, TaskViewSet, TimeEntryViewSet
+from apps.projects.views import DeliverableViewSet, ProjectViewSet, TaskCommentViewSet, TaskViewSet, TimeEntryViewSet
 from apps.reports import views as reports
 from apps.team import views as team
 
@@ -31,6 +31,9 @@ router.register("posts", ContentPostViewSet, basename="contentpost")
 router.register("client-reports", ClientReportViewSet, basename="clientreport")
 router.register("payroll", team.PayrollViewSet, basename="payroll")
 router.register("notes", team.NoteViewSet, basename="note")
+router.register("deliverables", DeliverableViewSet, basename="deliverable")
+router.register("work-rates", team.WorkRateViewSet, basename="workrate")
+router.register("piece-works", team.PieceWorkViewSet, basename="piecework")
 
 admin.site.site_header = "Agentlik ERP"
 admin.site.site_title = "Agentlik ERP"
@@ -47,6 +50,10 @@ urlpatterns = [
     path("api/payroll/mine/", team.my_payroll),
     path("api/telegram/test/", team.telegram_test),
     path("api/telegram/discover/", team.telegram_discover),
+    path("api/telegram/bot/", team.telegram_bot),
+    path("api/telegram/chats/", team.telegram_chats),
+    path("api/telegram/webhook/", team.telegram_webhook),
+    path("api/reports/kpi/", reports.team_kpi_view),
     path("api/cron/tick/", team.cron_tick),
     path("api/cron/daily/", team.cron_daily),
     path("api/reports/dashboard/", reports.dashboard),

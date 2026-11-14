@@ -18,6 +18,8 @@ export interface Field {
   /** Faqat yangi yozuv yaratishda ko'rsatiladi */
   createOnly?: boolean
   full?: boolean
+  /** Formada ko'rsatilmaydi, lekin qiymati yuboriladi (masalan, loyiha sahifasidagi project) */
+  hidden?: boolean
 }
 
 export interface Column {
@@ -227,7 +229,7 @@ export function RecordForm({ title, endpoint, fields, initial, onClose, onSaved 
     <Modal title={title} onClose={onClose}>
       <form onSubmit={submit} className="form">
         <div className="form-grid">
-          {fields.filter((f) => !(f.createOnly && !isNew)).map((f) => (
+          {fields.filter((f) => !f.hidden && !(f.createOnly && !isNew)).map((f) => (
             <label key={f.name} className={`field ${f.full || f.type === 'textarea' || f.type === 'multiref' ? 'full' : ''}`}>
               <span>{f.label}{f.required && ' *'}</span>
               <FieldInput f={f} value={values[f.name]} onChange={(v) => set(f.name, v)} />

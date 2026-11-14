@@ -6,7 +6,7 @@ from django.db import transaction
 from django.db.models import Q, Sum
 from django.utils import timezone
 from rest_framework import generics, status, viewsets
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import action, api_view, authentication_classes, permission_classes
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import SAFE_METHODS, AllowAny, BasePermission
 from rest_framework.response import Response
@@ -15,9 +15,10 @@ from apps.accounts.models import User
 from apps.accounts.permissions import PayrollPermission, has_role
 from apps.finance.models import Expense
 
-from .models import AgencySettings, Attendance, Note, NoteMessage, PayrollEntry
+from .models import AgencySettings, Attendance, Note, NoteMessage, PayrollEntry, PieceWork, TelegramChat, WorkRate
 from .serializers import (
     AgencySettingsSerializer, AttendanceRowSerializer, NoteMessageSerializer, NoteSerializer, PayrollEntrySerializer,
+    PieceWorkSerializer, TelegramChatSerializer, WorkRateSerializer,
 )
 
 
@@ -41,6 +42,15 @@ class SettingsView(generics.RetrieveUpdateAPIView):
 
     def get_object(self):
         return AgencySettings.get()
+
+    def perform_update(self, serializer):
+        new_token = serializer.validated_data.get("telegram_bot_token")
+        serializer.save()
+        if new_token:  # yangi bot — webhook'ni darhol ulaymiz (sayt manzili ma'lum bo'lsa)
+            from .bot import set_webhook, webhook_url
+
+            if webhook_url():
+                set_webhook()
 
 
 # ---------- Davomat ----------
@@ -327,6 +337,15 @@ def telegram_discover(request):
     from . import telegram
 
     ok, res = telegram.call("getUpdates", {"limit": 100, "allowed_updates": ["message"]})
+    if not ok and "webhook" in str(res).lower():
+        # Bot webhook orqali ishlayapti — u ko'rgan guruhlar bazada saqlangan
+        rows = []
+        for c in TelegramChat.objects.filter(active=True):
+            rows.append({"chat_id": c.chat_id, "chat_title": c.title, "thread_id": None, "topic_name": "",
+                         "last_text": ""})
+            rows += [{"chat_id": c.chat_id, "chat_title": c.title, "thread_id": int(k), "topic_name": v,
+                      "last_text": ""} for k, v in c.topics.items()]
+        return Response(rows)
     if not ok:
         raise ValidationError({"detail": f"Telegram javob bermadi: {res}"})
     found = {}
@@ -365,6 +384,8 @@ def cron_tick(request):
         raise PermissionDenied("Kalit noto'g'ri")
     s = AgencySettings.get()
     reminders = telegram.deadline_reminders()
+    shoots = telegram.shoot_reminders()
+    kpi = telegram.monthly_kpi()
     digest = "o'chirilgan"
     now = timezone.localtime()
     if s.tg_daily_digest:
@@ -378,8 +399,160 @@ def cron_tick(request):
             digest = "yuborildi" if text else "vazifa yo'q"
         else:
             digest = "hali vaqti emas yoki bugun yuborilgan"
-    return Response({"reminders": reminders, "digest": digest})
+    return Response({"reminders": reminders, "shoots": shoots, "kpi": kpi, "digest": digest})
 
 
 # Eski manzil bilan moslik
 cron_daily = cron_tick
+
+
+@api_view(["GET", "POST"])
+@permission_classes([AdminOnly])
+def telegram_bot(request):
+    """Bot holati (GET) yoki webhook'ni ulash (POST): guruhdagi buyruqlar va tugmalar shu orqali ishlaydi."""
+    from . import bot, telegram
+
+    if request.method == "POST":
+        ok, res = bot.set_webhook()
+        if not ok:
+            raise ValidationError({"detail": f"Ulanmadi: {res}"})
+    ok, me = telegram.call("getMe", {})
+    if not ok:
+        return Response({"connected": False, "error": me})
+    _, info = telegram.call("getWebhookInfo", {})
+    info = info or {}
+    linked = User.objects.filter(is_active=True, telegram_user_id__isnull=False).count()
+    return Response({
+        "connected": True, "username": me.get("username"), "webhook": bool(info.get("url")),
+        "webhook_ok": info.get("url") == bot.webhook_url(), "last_error": info.get("last_error_message", ""),
+        "linked_users": linked, "chats": TelegramChatSerializer(TelegramChat.objects.filter(active=True),
+                                                                many=True).data,
+    })
+
+
+@api_view(["GET"])
+def telegram_chats(request):
+    """Bot qo'shilgan guruhlar (jamoa guruhidan tashqari) — mijozga guruh biriktirish uchun."""
+    if not has_role(request.user, "admin", "manager", "sales"):
+        raise PermissionDenied()
+    qs = TelegramChat.objects.filter(active=True).exclude(chat_id=AgencySettings.get().telegram_chat_id)
+    return Response([{"chat_id": c.chat_id, "title": c.title} for c in qs])
+
+
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def telegram_webhook(request):
+    """Telegram shu manzilga yangilanishlarni yuboradi (maxfiy sarlavha bilan tekshiriladi)."""
+    import logging
+
+    from . import bot
+
+    if request.headers.get("X-Telegram-Bot-Api-Secret-Token") != bot.webhook_secret():
+        raise PermissionDenied()
+    try:
+        bot.handle_update(request.data)
+    except Exception:  # Telegram qayta-qayta yubormasligi uchun har doim 200
+        logging.getLogger(__name__).exception("Telegram update xatosi")
+    return Response({"ok": True})
+
+
+# ---------- Frilanserlar: donabay ish ----------
+
+class FreelanceRead(BasePermission):
+    """Narxlar va ishlar: rahbar va buxgalter — to'liq; HR va PM — ko'rish; xodim — faqat o'zinikini ko'radi."""
+
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+        return request.method in SAFE_METHODS or has_role(request.user, "admin", "accountant")
+
+
+def sees_all_freelance(user):
+    return has_role(user, "admin", "accountant", "hr", "manager")
+
+
+class WorkRateViewSet(viewsets.ModelViewSet):
+    serializer_class = WorkRateSerializer
+    permission_classes = [FreelanceRead]
+    filterset_fields = ["user", "active"]
+    pagination_class = None
+
+    def get_queryset(self):
+        qs = WorkRate.objects.select_related("user")
+        return qs if sees_all_freelance(self.request.user) else qs.filter(user=self.request.user)
+
+
+class PieceWorkViewSet(viewsets.ModelViewSet):
+    serializer_class = PieceWorkSerializer
+    permission_classes = [FreelanceRead]
+    filterset_fields = {"user": ["exact"], "project": ["exact"], "pay_mode": ["exact"],
+                        "paid_at": ["isnull"], "date": ["gte", "lte"]}
+
+    def get_queryset(self):
+        qs = PieceWork.objects.select_related("user", "project")
+        return qs if sees_all_freelance(self.request.user) else qs.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        from . import telegram
+
+        pw = serializer.save(created_by=self.request.user, date=serializer.validated_data.get("date")
+                             or timezone.localdate())
+        telegram.piece_added(pw)
+
+    def perform_update(self, serializer):
+        if serializer.instance.paid_at:
+            raise ValidationError("To'langan ishni o'zgartirib bo'lmaydi.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if instance.paid_at:
+            raise ValidationError("To'langan ishni o'chirib bo'lmaydi.")
+        instance.delete()
+
+    @action(detail=False, methods=["post"])
+    def pay(self, request):
+        """To'lash: {"ids": [...]} yoki {"user": id, "pay_mode": "month"} — shu xodimning to'lanmaganlari."""
+        from . import freelance
+
+        if not has_role(request.user, "admin", "accountant"):
+            raise PermissionDenied()
+        qs = PieceWork.objects.filter(paid_at__isnull=True).select_related("user")
+        if request.data.get("ids"):
+            qs = qs.filter(pk__in=request.data["ids"])
+        elif request.data.get("user"):
+            qs = qs.filter(user=request.data["user"])
+            if request.data.get("pay_mode"):
+                qs = qs.filter(pay_mode=request.data["pay_mode"])
+        else:
+            raise ValidationError("Qaysi ishlar to'lanishini tanlang.")
+        works = freelance.pay(list(qs), request.user, _parse_date(request.data.get("date")))
+        return Response({"paid": len(works), "amount": sum((w.amount for w in works), Decimal("0"))})
+
+    @action(detail=False)
+    def summary(self, request):
+        """Har bir frilanser bo'yicha: darhol to'lanadigan, oy oxirida to'lanadigan, shu oy to'langan."""
+        today = timezone.localdate()
+        first = today.replace(day=1)
+        qs = self.get_queryset()
+        rows = {}
+        for r in qs.filter(paid_at__isnull=True).values("user", "pay_mode").annotate(s=Sum("amount")):
+            row = rows.setdefault(r["user"], {"user": r["user"], "now": Decimal("0"), "month": Decimal("0"),
+                                              "paid_month": Decimal("0")})
+            row[r["pay_mode"]] += r["s"]
+        for r in qs.filter(paid_at__gte=first).values("user").annotate(s=Sum("amount")):
+            rows.setdefault(r["user"], {"user": r["user"], "now": Decimal("0"), "month": Decimal("0"),
+                                        "paid_month": Decimal("0")})["paid_month"] = r["s"]
+        users = {u.pk: u for u in User.objects.filter(pk__in=rows.keys())}
+        out = []
+        for uid, row in rows.items():
+            u = users[uid]
+            out.append({**row, "name": str(u), "position": u.position, "telegram_linked": bool(u.telegram_user_id),
+                        "unpaid": row["now"] + row["month"]})
+        out.sort(key=lambda r: (-r["now"], -r["unpaid"], r["name"]))
+        return Response({
+            "rows": out,
+            "unpaid_now": sum((r["now"] for r in out), Decimal("0")),
+            "unpaid_month": sum((r["month"] for r in out), Decimal("0")),
+            "paid_month": sum((r["paid_month"] for r in out), Decimal("0")),
+        })

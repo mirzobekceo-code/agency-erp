@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { api, errorText, type Paginated, type Row } from '../api'
 import { useAuth } from '../auth'
 import { Badge, Modal, PageHead, refLabel, useRefOptions } from '../components/ui'
-import { L, fmtDateTime, num, relDay, todayISO } from '../labels'
+import { L, fmtDateTime, money, num, relDay, todayISO } from '../labels'
 
 const STATUSES = Object.keys(L.taskStatus) as (keyof typeof L.taskStatus)[]
 const TABS: [string, string][] = [
@@ -31,7 +31,18 @@ export function TaskForm({ initial, onClose, onSaved }: { initial: Row; onClose:
     due_date: initial.due_date ?? '', due_time: (initial.due_time ?? '').slice(0, 5), priority: initial.priority ?? 'medium', status: initial.status ?? 'todo',
     description: initial.description ?? '',
     steps: ((initial.checklist ?? []) as Row[]).map((s) => s.text).join('\n'),
+    piece_rate: initial.piece_rate ?? '', piece_qty: initial.piece_qty ? Number(initial.piece_qty) : 1,
+    piece_pay_mode: initial.piece_pay_mode ?? 'month',
   })
+  const { can } = useAuth()
+  const assigneeRow = users.find((u) => u.id === v.assignee)
+  // Frilanserga vazifa berilsa — donabay narx (narxlarni ko'ra oladiganlar uchun)
+  const pieceMode = can('accountant', 'hr', 'manager') && assigneeRow?.employee_type === 'freelance'
+  const [rates, setRates] = useState<Row[]>([])
+  useEffect(() => {
+    if (!pieceMode || !v.assignee) { setRates([]); return }
+    api.get<Row[]>('/work-rates/', { params: { user: v.assignee, active: true } }).then((r) => setRates(r.data)).catch(() => {})
+  }, [pieceMode, v.assignee])
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const set = (k: string, val: unknown) => setV((s) => ({ ...s, [k]: val }))
@@ -46,6 +57,8 @@ export function TaskForm({ initial, onClose, onSaved }: { initial: Row; onClose:
       title: v.title, project: v.project || null, assignee: v.assignee || null, due_date: v.due_date || null,
       due_time: v.due_date && v.due_time ? v.due_time : null,
       priority: v.priority, status: v.status, description: v.description, checklist,
+      ...(pieceMode ? { piece_rate: v.piece_rate || null, piece_qty: v.piece_qty || 1, piece_pay_mode: v.piece_pay_mode }
+        : v.assignee !== initial.assignee ? { piece_rate: null } : {}),
     }
     try {
       const r = isNew ? await api.post('/tasks/', payload) : await api.patch(`/tasks/${initial.id}/`, payload)
@@ -69,7 +82,7 @@ export function TaskForm({ initial, onClose, onSaved }: { initial: Row; onClose:
             </select>
           </label>
           <label className="field"><span>Kimga (ijrochi)</span>
-            <select className="input" value={v.assignee} onChange={(e) => set('assignee', e.target.value ? Number(e.target.value) : '')}>
+            <select className="input" value={v.assignee} onChange={(e) => setV((s) => ({ ...s, assignee: e.target.value ? Number(e.target.value) : '', piece_rate: '' }))}>
               <option value="">— Tanlanmagan —</option>
               {users.filter((u) => u.is_active !== false).map((u) => (
                 <option key={u.id} value={u.id}>{refLabel(u)}{u.position ? ` (${u.position})` : ''}</option>
@@ -90,6 +103,26 @@ export function TaskForm({ initial, onClose, onSaved }: { initial: Row; onClose:
               ))}
             </div>
           </div>
+          {pieceMode && (
+            <div className="field full piece-box">
+              <span>💰 Donabay to'lov (frilanser) — vazifa tasdiqlanganda hisobiga yoziladi</span>
+              {rates.length === 0 ? <small className="muted">Bu xodimga narx kiritilmagan — Moliya → Frilanserlar → Narxlar.</small> : (
+                <div className="piece-row">
+                  <select className="input" value={v.piece_rate} onChange={(e) => set('piece_rate', e.target.value ? Number(e.target.value) : '')}>
+                    <option value="">— To'lovsiz —</option>
+                    {rates.map((r) => <option key={r.id} value={r.id}>{r.title} — {money(r.price)}</option>)}
+                  </select>
+                  <input className="input" type="number" min="0.5" step="any" title="Soni" value={v.piece_qty} disabled={!v.piece_rate}
+                    onChange={(e) => set('piece_qty', e.target.value)} />
+                  <select className="input" value={v.piece_pay_mode} disabled={!v.piece_rate} onChange={(e) => set('piece_pay_mode', e.target.value)}>
+                    <option value="now">Darhol to'lanadi</option>
+                    <option value="month">Oy oxirida</option>
+                  </select>
+                </div>
+              )}
+              {v.piece_rate && <small className="muted">Summa: {money(Number(rates.find((r) => r.id === v.piece_rate)?.price ?? 0) * Number(v.piece_qty || 0))}. Frilanserga faqat Telegram'da shaxsiy xabar boradi.</small>}
+            </div>
+          )}
           <label className="field"><span>Muhimlik *</span>
             <select className="input" value={v.priority} onChange={(e) => set('priority', e.target.value)}>
               {Object.entries(L.priority).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
@@ -389,6 +422,8 @@ function TaskDetail({ id, me, onClose, onEdit, onChanged }: {
         <div><span className="muted">Sarflangan vaqt</span>{num(task.spent_hours)} soat</div>
         {task.returned_count > 0 && <div><span className="muted">Qaytarilgan</span><span className="text-bad">{task.returned_count} marta</span></div>}
         {task.done_at && <div><span className="muted">Bajarildi</span>{fmtDateTime(task.done_at)}</div>}
+        {task.piece_info && <div><span className="muted">Donabay to'lov</span>{task.piece_info.title}: <b>{money(task.piece_info.amount)}</b> ({task.piece_info.pay_mode === 'now' ? 'darhol' : 'oy oxirida'})</div>}
+        {task.last_status_ask && st !== 'done' && <div><span className="muted">Telegram'dagi javob</span>{{ done: '✅ Tayyor', going: '⏳ Jarayonda', late: '⚠️ Kechikadi' }[task.last_status_ask as 'done']}</div>}
       </div>
       {task.description && <p className="pre">{task.description}</p>}
 

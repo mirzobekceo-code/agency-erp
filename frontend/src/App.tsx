@@ -5,6 +5,9 @@ import Layout from './components/Layout'
 
 // Sahifalar kerak bo'lganda yuklanadi (birinchi ochilish tezroq)
 const ContentPage = lazy(() => import('./pages/Content'))
+const DeliverablesPage = lazy(() => import('./pages/Deliverables'))
+const FreelancePage = lazy(() => import('./pages/Freelance'))
+const KpiPage = lazy(() => import('./pages/Kpi'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const FinanceOverview = lazy(() => import('./pages/FinanceOverview'))
 const FinanceReport = lazy(() => import('./pages/FinanceReport'))
@@ -55,6 +58,9 @@ export default function App() {
             <Route path="reports" element={<ReportsPage />} />
             <Route path="clients" element={<ClientsPage />} />
             <Route path="contracts" element={<ContractsPage />} />
+            <Route path="deliverables" element={<DeliverablesPage />} />
+            <Route path="freelance" element={<FreelancePage />} />
+            <Route path="kpi" element={<KpiPage />} />
             <Route path="projects" element={<ProjectsPage />} />
             <Route path="projects/:id" element={<ProjectDetail />} />
             <Route path="tasks" element={<TasksPage />} />

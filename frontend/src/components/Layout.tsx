@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { api, type Paginated, type Row } from '../api'
 import { useAuth } from '../auth'
 
-interface Item { to: string; label: string; finance?: boolean; payroll?: boolean }
+interface Item { to: string; label: string; finance?: boolean; payroll?: boolean; kpi?: boolean; freelance?: boolean }
 
 // title link berilsa, guruh sarlavhasi bosilganda o'sha sahifa ochiladi
 
@@ -24,6 +24,7 @@ const groups: { title: string; link?: string; items: Item[] }[] = [
       { to: '/projects', label: 'Loyihalar' },
       { to: '/crm', label: 'CRM' },
       { to: '/clients', label: 'Mijozlar' },
+      { to: '/deliverables', label: 'Majburiyatlar' },
       { to: '/contracts', label: 'Shartnomalar' },
       { to: '/reports', label: 'Hisobot' },
     ],
@@ -33,6 +34,7 @@ const groups: { title: string; link?: string; items: Item[] }[] = [
     items: [
       { to: '/users', label: 'Jamoa' },
       { to: '/attendance', label: 'Davomat' },
+      { to: '/kpi', label: 'Samaradorlik', kpi: true },
       { to: '/notes', label: 'Yozuvlar' },
     ],
   },
@@ -45,6 +47,7 @@ const groups: { title: string; link?: string; items: Item[] }[] = [
       { to: '/payments', label: "To'lovlar", finance: true },
       { to: '/expenses', label: 'Xarajatlar', finance: true },
       { to: '/payroll', label: 'Oylik vedomost', payroll: true },
+      { to: '/freelance', label: 'Frilanserlar', freelance: true },
       { to: '/ad-spends', label: 'Reklama sarflari', finance: true },
       { to: '/reports/finance', label: 'Moliyaviy hisobot', finance: true },
     ],
@@ -69,7 +72,15 @@ export default function Layout() {
         <nav onClick={() => setOpen(false)}>
           {groups.map((g) => {
             const canPayroll = can('accountant', 'hr')
-            const items = g.items.filter((i) => (i.payroll ? canPayroll : !i.finance || user?.can_see_finance))
+            const freelanceStaff = can('accountant', 'hr', 'manager')
+            const items = g.items
+              .filter((i) => {
+                if (i.payroll) return canPayroll
+                if (i.kpi) return can('hr')
+                if (i.freelance) return freelanceStaff || user?.employee_type === 'freelance'
+                return !i.finance || user?.can_see_finance
+              })
+              .map((i) => (i.freelance && !freelanceStaff ? { ...i, label: 'Mening ishlarim' } : i))
             if (!items.length) return null
             return (
               <div key={g.title} className="nav-group">

@@ -14,6 +14,9 @@ class Client(models.Model):
     phone = models.CharField("Telefon", max_length=20, blank=True)
     email = models.EmailField("Email", blank=True)
     telegram = models.CharField("Telegram", max_length=64, blank=True)
+    # Mijoz bilan umumiy Telegram guruhi: bot u yerga faqat syomka eslatmasini yuboradi
+    telegram_group_id = models.CharField("Telegram guruh ID", max_length=40, blank=True)
+    telegram_group_title = models.CharField("Telegram guruh nomi", max_length=200, blank=True)
     inn = models.CharField("STIR (INN)", max_length=20, blank=True)
     address = models.CharField("Manzil", max_length=255, blank=True)
     status = models.CharField("Holat", max_length=20, choices=Status.choices, default=Status.ACTIVE)

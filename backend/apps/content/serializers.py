@@ -23,6 +23,7 @@ class ContentPostSerializer(serializers.ModelSerializer):
     class Meta:
         model = ContentPost
         fields = "__all__"
+        read_only_fields = ["shoot_reminder_sent_at"]
 
     def get_responsible_id(self, obj):
         r = obj.responsible

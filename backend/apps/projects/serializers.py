@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Project, Task, TaskComment, TimeEntry
+from .models import Deliverable, Project, Task, TaskComment, TimeEntry
 
 
 class ProjectSerializer(serializers.ModelSerializer):
@@ -42,7 +42,29 @@ class TaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = Task
         fields = "__all__"
-        read_only_fields = ["created_by", "done_at", "returned_count", "reminder_sent_at"]
+        read_only_fields = ["created_by", "done_at", "returned_count", "reminder_sent_at", "submitted_at",
+                            "last_status_ask"]
+
+    piece_info = serializers.SerializerMethodField()
+
+    def get_piece_info(self, obj):
+        """Donabay narx — faqat ijrochi, vazifa beruvchi va moliya/oylik bilan ishlovchilarga ko'rinadi."""
+        from apps.accounts.permissions import has_role
+
+        u = self._user()
+        if not obj.piece_rate_id or not u:
+            return None
+        if not (obj.assignee_id == u.pk or obj.can_supervise(u) or has_role(u, "admin", "accountant", "hr")):
+            return None
+        return {"title": obj.piece_rate.title, "amount": obj.piece_rate.price * (obj.piece_qty or 1),
+                "pay_mode": obj.piece_pay_mode}
+
+    def validate(self, attrs):
+        rate = attrs.get("piece_rate", getattr(self.instance, "piece_rate", None))
+        assignee = attrs.get("assignee", getattr(self.instance, "assignee", None))
+        if rate and (not assignee or rate.user_id != assignee.pk):
+            raise serializers.ValidationError({"piece_rate": "Bu narx tanlangan ijrochiga tegishli emas."})
+        return attrs
 
     def get_steps_total(self, obj):
         return len(obj.checklist or [])
@@ -83,3 +105,34 @@ class TimeEntrySerializer(serializers.ModelSerializer):
         model = TimeEntry
         fields = "__all__"
         read_only_fields = ["user"]
+
+
+class DeliverableSerializer(serializers.ModelSerializer):
+    project_name = serializers.StringRelatedField(source="project", read_only=True)
+    client_name = serializers.CharField(source="project.client.name", read_only=True)
+    responsible_name = serializers.StringRelatedField(source="responsible", read_only=True)
+    done_count = serializers.IntegerField(read_only=True)
+    state = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Deliverable
+        fields = "__all__"
+
+    def get_state(self, obj):
+        """done / late (muddat o'tdi) / behind (reja bo'yicha orqada) / ok."""
+        from django.utils import timezone
+
+        done = obj.done_count
+        if done >= obj.quantity:
+            return "done"
+        today = timezone.localdate()
+        if obj.due_date and obj.due_date < today:
+            return "late"
+        if obj.due_date and obj.period_start and obj.period_start < obj.due_date:
+            total = (obj.due_date - obj.period_start).days
+            passed = min(max((today - obj.period_start).days, 0), total)
+            if done < obj.quantity * passed / total - 0.5:
+                return "behind"
+        elif obj.due_date and (obj.due_date - today).days <= 3:
+            return "behind"
+        return "ok"

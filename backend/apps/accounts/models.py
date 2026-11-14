@@ -38,6 +38,8 @@ class User(AbstractUser):
     position = models.CharField("Lavozim nomi (ixtiyoriy)", max_length=100, blank=True)
     phone = models.CharField("Telefon", max_length=20, blank=True)
     telegram = models.CharField("Telegram", max_length=64, blank=True)
+    # Bot bilan shaxsiy chat (xodim botga /start yozganda to'ldiriladi)
+    telegram_user_id = models.BigIntegerField("Telegram ID", null=True, blank=True, unique=True)
     salary = models.DecimalField("Oylik maosh", max_digits=14, decimal_places=2, default=0)
     hired_at = models.DateField("Ishga kirgan sana", null=True, blank=True)
 

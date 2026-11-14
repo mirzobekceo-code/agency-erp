@@ -13,8 +13,9 @@ from apps.accounts.permissions import can_see_finance, sees_all_leads
 from apps.clients.models import Client, Lead
 from apps.content.models import ContentPost
 from apps.finance.models import AdSpend, Expense, Invoice, Payment
-from apps.projects.models import Project, Task, TimeEntry
-from apps.team.models import AgencySettings, Attendance, PayrollEntry
+from apps.accounts.permissions import has_role
+from apps.projects.models import Deliverable, Project, Task, TimeEntry
+from apps.team.models import AgencySettings, Attendance, PayrollEntry, PieceWork
 from apps.team.views import can_mark_attendance, generate_payroll, tracked_users
 
 MONEY = DecimalField(max_digits=16, decimal_places=2)
@@ -180,6 +181,8 @@ def finance_overview(request):
         "margin": round(profit / revenue * 100) if revenue else None,
         "receivables": _receivables(),
         "payroll_left": payroll_left,
+        "freelance_unpaid": _sum(PieceWork.objects.filter(paid_at__isnull=True)),
+        "freelance_paid": _sum(expenses.filter(category=Expense.Category.FREELANCER)),
         "payroll_pay_date": pay,
         "cash_flow": [{"month": m, "revenue": rin.get(m, Decimal("0")), "expenses": rout.get(m, Decimal("0"))}
                       for m in months],
@@ -238,11 +241,98 @@ def _alerts(user, today):
         if 0 < (nxt - today).days <= 3:
             alerts.append({"tone": "info", "icon": "calendar", "link": "/payroll", "action": "Vedomost",
                            "text": f"Oylik kuni yaqinlashmoqda: {nxt.day}-{MONTHS_UZ[nxt.month - 1]}"})
+    if has_role(user, "admin", "accountant"):
+        now_due = _sum(PieceWork.objects.filter(paid_at__isnull=True, pay_mode=PieceWork.PayMode.NOW))
+        if now_due > 0:
+            alerts.append({"tone": "warn", "icon": "wallet", "link": "/freelance", "action": "To'lash",
+                           "text": f"Frilanserlarga darhol to'lanadigan: {now_due:,.0f} so'm".replace(",", " ")})
+    alerts += _deliverable_alerts(user, today)
     n = Task.objects.filter(assignee=user, due_date__lt=today).exclude(status=Task.Status.DONE).count()
     if n:
         alerts.append({"tone": "bad", "icon": "alarm", "link": "/tasks?overdue=1", "action": "Ko'rish",
                        "text": f"Sizning {n} ta vazifangizning muddati o'tib ketgan"})
     return alerts
+
+
+def _deliverable_alerts(user, today):
+    """Muddati yaqin/o'tgan va reja bo'yicha orqada qolayotgan majburiyatlar (mas'ul, PM yoki rahbarga)."""
+    from apps.projects.serializers import DeliverableSerializer
+
+    qs = Deliverable.objects.filter(project__status__in=["planning", "active"], due_date__isnull=False,
+                                    due_date__lte=today + timedelta(days=7)).select_related("project")
+    if not user.is_admin:
+        qs = qs.filter(Q(responsible=user) | Q(project__manager=user))
+    bad = []
+    for d in qs:
+        state = DeliverableSerializer().get_state(d)
+        if state in ("late", "behind"):
+            bad.append((state, d))
+    if not bad:
+        return []
+    late = sum(1 for st, _ in bad if st == "late")
+    first = bad[0][1]
+    text = (f"Majburiyatlar: {len(bad)} tasi orqada" + (f", {late} tasining muddati o'tgan" if late else "")
+            + f" — masalan, «{first.title}» ({first.project.name}): {first.done_count}/{first.quantity}")
+    return [{"tone": "bad" if late else "warn", "icon": "flag", "link": "/deliverables", "action": "Ko'rish",
+             "text": text}]
+
+
+def team_kpi(first):
+    """Oy bo'yicha xodimlar samaradorligi: yopilgan, o'z vaqtida, kechikkan, qaytarilgan vazifalar."""
+    nxt = _month_start(first + timedelta(days=32))
+    now = timezone.now()
+    rows = {}
+
+    def row(u):
+        return rows.setdefault(u.pk, {"user": u.pk, "name": str(u), "position": u.position, "done": 0,
+                                      "on_time": 0, "late": 0, "overdue_open": 0, "returned": 0})
+
+    done = Task.objects.filter(status=Task.Status.DONE, done_at__date__gte=first, done_at__date__lt=nxt,
+                               assignee__isnull=False).select_related("assignee")
+    for t in done:
+        r = row(t.assignee)
+        r["done"] += 1
+        r["returned"] += t.returned_count
+        dl, sub = t.deadline, t.submitted_at or t.done_at
+        if dl and sub and sub > dl:
+            r["late"] += 1
+        else:
+            r["on_time"] += 1
+    # Hali ochiq, lekin muddati shu oy ichida o'tib ketganlar ham kechikkan hisoblanadi
+    open_qs = Task.objects.exclude(status=Task.Status.DONE).filter(
+        assignee__isnull=False, due_date__gte=first, due_date__lt=nxt).select_related("assignee")
+    for t in open_qs:
+        dl = t.deadline
+        sub = t.submitted_at if t.status == Task.Status.REVIEW else None
+        if dl and dl < now and not (sub and sub <= dl):
+            r = row(t.assignee)
+            r["overdue_open"] += 1
+            r["late"] += 1
+    out = []
+    for r in rows.values():
+        total = r["on_time"] + r["late"]
+        r["on_time_pct"] = round(r["on_time"] / total * 100) if total else 0
+        out.append(r)
+    out.sort(key=lambda r: (-r["on_time_pct"], -r["done"], r["returned"], r["name"]))
+    tot_done = sum(r["done"] for r in out)
+    tot_on = sum(r["on_time"] for r in out)
+    tot_late = sum(r["late"] for r in out)
+    freelance = PieceWork.objects.filter(date__gte=first, date__lt=nxt)
+    return {
+        "month": first.strftime("%Y-%m"),
+        "rows": out,
+        "totals": {"done": tot_done, "late": tot_late,
+                   "on_time_pct": round(tot_on / (tot_on + tot_late) * 100) if tot_on + tot_late else 0},
+        "freelance": {"accrued": _sum(freelance),
+                      "unpaid": _sum(PieceWork.objects.filter(paid_at__isnull=True))},
+    }
+
+
+@api_view(["GET"])
+def team_kpi_view(request):
+    if not has_role(request.user, "admin", "hr"):
+        raise PermissionDenied()
+    return Response(team_kpi(_parse_month(request, timezone.localdate())))
 
 
 def _parse_period(request):
